@@ -71,7 +71,7 @@ heat.75=нагрей воду в чайнике для термоса
 
 ## Установка через Alice Homebrew
 
-Загрузите локальный пакет `redmond-kettle-1.2.4-yandexmini.yampkg` через Alice Homebrew. Профиль `yandexmini` предназначен для Станции Мини первого поколения. Пробы используют штатный загрузчик ARM hard-float и библиотеку BSA на Станции.
+Загрузите локальный пакет `redmond-kettle-1.2.5-yandexmini.yampkg` через Alice Homebrew. Профиль `yandexmini` предназначен для Станции Мини первого поколения. Пробы используют штатный загрузчик ARM hard-float и библиотеку BSA на Станции.
 
 Перед обновлением завершите сессии, запущенные на переднем плане, через Ctrl+C. Установщик запускает фоновую службу и создаёт `/etc/init.d/S99redmond-kettle` для автозапуска. При первой установке или обновлении с 1.1.x впишите BLE-адрес чайника одной строкой в формате `AA:BB:CC:DD:EE:FF` в `/data/yam/etc/lynx.redmond-kettle/device.conf`, затем перезапустите службу. Спросите Алису о температуре воды и, если она предложит привязку, выполните её и повторите вопрос.
 
@@ -121,7 +121,7 @@ MUSL_COPYRIGHT=/path/to/musl/COPYRIGHT \
 
 ```sh
 yam-publish publish --source packaging/yam --target yandexmini \
-  --artifact build/dist/redmond-kettle-1.2.4-yandexmini.yampkg
+  --artifact build/dist/redmond-kettle-1.2.5-yandexmini.yampkg
 ```
 
 [Руководство по публикации YAM](https://github.com/nyakokitsu/yam/blob/main/docs/PUBLISHING.md)
