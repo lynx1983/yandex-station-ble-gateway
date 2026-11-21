@@ -9,7 +9,7 @@ if ! readelf -sW "$voice" | awk '$NF == "__init_libc" {musl=1} END {exit !musl}'
     printf 'Build alice-kettle with a static ARM musl compiler before packaging\n' >&2
     exit 1
 fi
-output=${1:-$root/build/dist/redmond-kettle-1.2.3-yandexmini.yampkg}
+output=${1:-$root/build/dist/redmond-kettle-1.2.4-yandexmini.yampkg}
 mkdir -p "$(dirname -- "$output")"
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT

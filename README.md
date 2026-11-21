@@ -107,7 +107,7 @@ entries and restart the service to apply changes.
 ## Install with Alice Homebrew
 
 Use the local package upload in Alice Homebrew and select
-`redmond-kettle-1.2.3-yandexmini.yampkg`. This build is for the first-generation
+`redmond-kettle-1.2.4-yandexmini.yampkg`. This build is for the first-generation
 Yandex Station Mini (YNDX-0004) and the Redmond SkyKettle RK-G214S.
 The profile is `yandexmini`; the probes use the Station's existing
 ARM hard-float loader and BSA library.
@@ -188,7 +188,7 @@ already in the host environment:
 
 ```sh
 yam-publish publish --source packaging/yam --target yandexmini \
-  --artifact build/dist/redmond-kettle-1.2.3-yandexmini.yampkg
+  --artifact build/dist/redmond-kettle-1.2.4-yandexmini.yampkg
 ```
 
 See the [YAM publishing guide](https://github.com/nyakokitsu/yam/blob/main/docs/PUBLISHING.md).
