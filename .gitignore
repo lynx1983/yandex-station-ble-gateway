@@ -1,0 +1,19 @@
+/build/
+
+__pycache__/
+
+# Local pairing, credentials, and release artifacts
+*.key
+*.key.pending
+*.pem
+.env
+.env.*
+!.env.example
+device.conf
+yam-publish-token
+*.yampkg
+*.so
+
+# Local development instructions and progress notes
+/AGENTS.md
+/PROGRESS.md

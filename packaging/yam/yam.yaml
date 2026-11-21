@@ -1,0 +1,25 @@
+name: lynx/redmond-kettle
+version: 1.2.3
+license: MIT
+description: Local Alice voice control for a Redmond SkyKettle RK-G214S on Yandex Station Mini
+targets: [yandexmini]
+files:
+  bin/redmond-kettle: service.sh
+  bin/redmond-kettle-postinstall: postinstall.sh
+  bin/redmond-kettle-worker: redmond-kettle-worker
+  share/lynx.redmond-kettle/libexec/alice-kettle: libexec/alice-kettle
+  share/lynx.redmond-kettle/libexec/discovery: libexec/discovery
+  share/lynx.redmond-kettle/libexec/gatt-temperature: libexec/gatt-temperature
+  share/lynx.redmond-kettle/libexec/gatt-stop: libexec/gatt-stop
+  share/lynx.redmond-kettle/libexec/gatt-boil: libexec/gatt-boil
+  share/lynx.redmond-kettle/phrases.conf: phrases.conf
+  share/lynx.redmond-kettle/activity.led: activity.led
+  share/lynx.redmond-kettle/boot.sh: boot.sh
+  share/lynx.redmond-kettle/LICENSE: LICENSE
+  share/lynx.redmond-kettle/musl-COPYRIGHT: musl-COPYRIGHT
+services:
+  redmond-kettle:
+    exec: ["bin/redmond-kettle", "run"]
+    restart: on-failure
+    after: [network]
+postinstall: ["bin/redmond-kettle-postinstall"]
