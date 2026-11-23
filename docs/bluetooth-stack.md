@@ -1,6 +1,6 @@
 # Bluetooth stack investigation
 
-AGENTS.md records the following BSA launch command on the YNDX-0004:
+The initial Station investigation recorded the following BSA launch command on the YNDX-0004:
 
 ```text
 /system/workdir/bin/bsa_server -d /dev/ttyS1 -p /etc/bluetooth/BCM43430.hcd -r13 -u /tmp/
@@ -511,5 +511,6 @@ the probe and the eight-byte key in the root-only `/tmp/ble-temp`
 directory, run a fresh BLE scan first, then run the probe from `/tmp`
 with `LD_PRELOAD=libpthread.so.0` and
 `LD_LIBRARY_PATH=/system/workdir/lib`. Remove the staged key after use.
-The probe is a one-shot CLI. A permanent service, retry policy, and
-Alice response integration remain open.
+The probe is a one-shot CLI. The package runs it from a long-lived
+service, retries once after a GATT open failure, and voices the result
+through `alice-kettle`; see [README](../README.md).

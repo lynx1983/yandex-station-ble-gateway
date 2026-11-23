@@ -2,6 +2,7 @@ CROSS_COMPILE ?= arm-linux-gnueabihf-
 ARM_CC ?= $(CROSS_COMPILE)gcc
 ARM_CC_FLAGS ?=
 PYTHON ?= python3
+HOST_CC ?= cc
 
 BUILD := build/phase1
 PROBE := scripts/bsa-management-probe.S
@@ -11,7 +12,7 @@ GATT_FLAGS := --defsym=GATT_REGISTER=1 --defsym=GATT_ENABLE=1 \
 	--defsym=GATT_CACHE_IMAGE=1 --defsym=GATT_CACHE_ONLY=1 \
 	--defsym=GATT_CACHE_THEN_SEARCH=1 --defsym=GATT_TEMPERATURE=1
 
-.PHONY: all
+.PHONY: all clean check check-version check-python check-shell check-c package
 all: $(BUILD)/alice-kettle $(BUILD)/discovery \
 	$(BUILD)/gatt-temperature $(BUILD)/gatt-stop $(BUILD)/gatt-boil
 
@@ -36,3 +37,32 @@ $(BUILD)/gatt-%.o: $(PROBE) $(GATT_SOURCE) $(BUILD)/kettle-status-blobs.inc
 $(BUILD)/discovery $(BUILD)/gatt-temperature $(BUILD)/gatt-stop $(BUILD)/gatt-boil: %: %.o $(BUILD)/libbsa.so
 	$(CROSS_COMPILE)ld --dynamic-linker /lib/ld-linux-armhf.so.3 \
 		--allow-shlib-undefined -L$(BUILD) -o $@ $< -lbsa
+
+# Host-side checks. These need no ARM toolchain and no BSA library.
+check: check-version check-python check-shell check-c
+
+check-version:
+	scripts/check-version.sh
+
+check-python:
+	$(PYTHON) scripts/kettle-cache-load.py
+	$(PYTHON) scripts/kettle-status-blobs.py
+	$(PYTHON) -m py_compile scripts/*.py
+
+check-shell:
+	sh -n scripts/bsa-diagnostics.sh
+	sh -n scripts/pack-yam.sh
+	sh -n scripts/station-temperature-worker.sh
+	sh -n packaging/yam/boot.sh
+	sh -n packaging/yam/postinstall.sh
+	sh -n packaging/yam/service.sh
+	bash -n scripts/run-station.sh
+
+check-c:
+	$(HOST_CC) -std=c11 -O2 -Wall -Wextra -Werror -fsyntax-only src/alice-kettle.c
+
+clean:
+	rm -rf build
+
+package:
+	scripts/pack-yam.sh

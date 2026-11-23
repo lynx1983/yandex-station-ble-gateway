@@ -36,6 +36,13 @@ make
 `ARM_CC` and `ARM_CC_FLAGS` can select a locally extracted cross
 compiler and its sysroot. `CROSS_COMPILE` selects the binutils prefix.
 
+`make check` validates version references, the Python scripts, shell
+syntax, and the C client without the ARM toolchain or the BSA library.
+`VERSION` is the single source of truth for the package version;
+`pack-yam.sh` derives the archive name and the staged `yam.yaml` from it.
+To cut a release, update `VERSION` and the matching `version:` line in
+`packaging/yam/yam.yaml`, then run `make check`.
+
 ## Run one session
 
 ```sh
@@ -106,8 +113,9 @@ entries and restart the service to apply changes.
 
 ## Install with Alice Homebrew
 
-Use the local package upload in Alice Homebrew and select
-`redmond-kettle-1.2.4-yandexmini.yampkg`. This build is for the first-generation
+Use the local package upload in Alice Homebrew and select the generated
+`redmond-kettle-<version>-yandexmini.yampkg` archive (`<version>` comes from
+the `VERSION` file). This build is for the first-generation
 Yandex Station Mini (YNDX-0004) and the Redmond SkyKettle RK-G214S.
 The profile is `yandexmini`; the probes use the Station's existing
 ARM hard-float loader and BSA library.
@@ -188,7 +196,7 @@ already in the host environment:
 
 ```sh
 yam-publish publish --source packaging/yam --target yandexmini \
-  --artifact build/dist/redmond-kettle-1.2.4-yandexmini.yampkg
+  --artifact "build/dist/redmond-kettle-$(cat VERSION)-yandexmini.yampkg"
 ```
 
 See the [YAM publishing guide](https://github.com/nyakokitsu/yam/blob/main/docs/PUBLISHING.md).

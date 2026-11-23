@@ -1,6 +1,8 @@
 # Gateway architecture
 
-Transport design depends on the Phase 1 BSA investigation.
+> Status: the voice, BLE, and package paths described below are implemented;
+> this document preserves the investigation history. See [README](../README.md)
+> for current install and usage instructions.
 
 ## Alice voice input feasibility
 
@@ -110,15 +112,18 @@ A new recognition cycle suppresses a pending stale reply.
 
 `scripts/station-temperature-worker.sh` runs fresh BLE discovery and
 the firmware-specific temperature probe. It returns only the decoded
-temperature to the voice client. The worker and credential are staged
-under `/tmp` for the test. No service or startup file is installed.
+temperature to the voice client. The prototype stages the worker and
+credential under `/tmp` for the test; the YAM package later moved them
+to package-owned storage and added the long-lived service described in
+the README.
 
 The host loopback test sent a retained final, an unrelated utterance,
 a partial target, and a repeated target final. It observed exactly
 one cancellation pair and a temperature TTS directive. Quasar's
 handling of those directives and audible output require a Station
 test. The one-shot client exits after a reply or a 90-second wait
-for a recognition event.
+for a recognition event; `--continuous` keeps it running for the
+packaged service.
 
 Build the Station voice client with an ARM hard-float cross compiler:
 
@@ -180,15 +185,13 @@ runs from a YAM package directory. The kettle payload comprises a
 Linux ARM32 application, firmware-linked BSA probes, a shell worker,
 and default phrases. YAM can package these files together.
 
-The current
-[YAM upstream status](https://github.com/nyakokitsu/yam/blob/main/AGENTS.md#implementation-status)
-describes service declarations as metadata and does not promise a
-built-in supervisor. Verify how the installed Homebrew/YAM integration
-starts and stops services before choosing the boot integration. First
-prepare a long-lived listener and explicit start/stop/status entry
-points. Keep the mutable phrases and negotiated key in package-owned
-persistent storage outside the versioned payload. Save the key with
-mode 0600 following successful pairing.
+YAM stores service declarations as metadata and does not run a
+supervisor, so the package ships its own `daemon` supervisor with a
+lock and pidfile plus an `/etc/init.d/S99redmond-kettle` hook. The
+long-lived listener and explicit start/stop/status entry points live
+in `packaging/yam/service.sh`. Mutable phrases and the negotiated key
+stay in package-owned persistent storage outside the versioned payload;
+the key is saved with mode 0600 after successful pairing.
 
 The [WASM plugin format](https://github.com/hertebeznat-cell/alice-homebrew/blob/main/docs/PLUGIN_GUIDE.md)
 does not provide the local IPC and executable access this payload uses.
