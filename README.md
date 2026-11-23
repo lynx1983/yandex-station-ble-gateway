@@ -38,6 +38,8 @@ compiler and its sysroot. `CROSS_COMPILE` selects the binutils prefix.
 
 `make check` validates version references, the Python scripts, shell
 syntax, and the C client without the ARM toolchain or the BSA library.
+`make test` compiles the same client for the host and runs the fake-Quasar
+regression suite for recognition, cancellation, timeouts, and pairing.
 `VERSION` is the single source of truth for the package version;
 `pack-yam.sh` derives the archive name and the staged `yam.yaml` from it.
 To cut a release, update `VERSION` and the matching `version:` line in

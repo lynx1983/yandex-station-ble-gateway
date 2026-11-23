@@ -102,6 +102,9 @@ enum operation { NO_OPERATION, READ_TEMPERATURE, STOP_HEATING, READ_STATUS, STAR
 #ifndef JOB_STOP_GRACE_MS
 #define JOB_STOP_GRACE_MS 1000
 #endif
+#ifndef QUASAR_PORT
+#define QUASAR_PORT 9875
+#endif
 
 struct alias { enum operation operation; char phrase[PHRASE_SIZE]; int target; };
 struct aliases { struct alias entries[PHRASE_LIMIT]; size_t count; };
@@ -877,7 +880,8 @@ int main(int argc, char **argv)
     }
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in endpoint = {
-        .sin_family = AF_INET, .sin_port = htons(9875), .sin_addr.s_addr = htonl(0x7f000001u)
+        .sin_family = AF_INET, .sin_port = htons(QUASAR_PORT),
+        .sin_addr.s_addr = htonl(0x7f000001u)
     };
     if (fd < 0 || connect(fd, (struct sockaddr *)&endpoint, sizeof(endpoint)) < 0) {
         perror("Quasar connection");

@@ -17,3 +17,5 @@ jobs:
           python-version: "3.x"
       - name: Run host checks
         run: make check
+      - name: Run voice client tests
+        run: make test

@@ -12,7 +12,7 @@ GATT_FLAGS := --defsym=GATT_REGISTER=1 --defsym=GATT_ENABLE=1 \
 	--defsym=GATT_CACHE_IMAGE=1 --defsym=GATT_CACHE_ONLY=1 \
 	--defsym=GATT_CACHE_THEN_SEARCH=1 --defsym=GATT_TEMPERATURE=1
 
-.PHONY: all clean check check-version check-python check-shell check-c package
+.PHONY: all clean check check-version check-python check-shell check-c test package
 all: $(BUILD)/alice-kettle $(BUILD)/discovery \
 	$(BUILD)/gatt-temperature $(BUILD)/gatt-stop $(BUILD)/gatt-boil
 
@@ -60,6 +60,9 @@ check-shell:
 
 check-c:
 	$(HOST_CC) -std=c11 -O2 -Wall -Wextra -Werror -fsyntax-only src/alice-kettle.c
+
+test:
+	HOST_CC="$(HOST_CC)" $(PYTHON) tests/test_voice_client.py
 
 clean:
 	rm -rf build
