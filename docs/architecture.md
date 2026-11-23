@@ -117,6 +117,14 @@ credential under `/tmp` for the test; the YAM package later moved them
 to package-owned storage and added the long-lived service described in
 the README.
 
+The host client is split into small C modules: `quasar.c` handles frame
+decoding and directives, `phrases.c` owns aliases and target parsing,
+`voice.c` deduplicates recognition events, `job.c` manages worker
+processes and replies, `activity.c` drives the LED, and `listener.c`
+runs the main loop. `alice-kettle.c` only configures signals and the
+loopback connection. `make test` compiles these modules for the host and
+exercises them against a fake Quasar listener.
+
 The host loopback test sent a retained final, an unrelated utterance,
 a partial target, and a repeated target final. It observed exactly
 one cancellation pair and a temperature TTS directive. Quasar's

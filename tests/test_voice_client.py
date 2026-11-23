@@ -18,7 +18,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "src" / "alice-kettle.c"
+SOURCE_DIR = ROOT / "src"
+SOURCES = sorted(SOURCE_DIR.glob("*.c"))
 
 
 def varint(value):
@@ -167,10 +168,11 @@ class QuasarHarness:
             "-Wall",
             "-Wextra",
             "-Werror",
+            "-I" + str(SOURCE_DIR),
             "-DQUASAR_PORT=%d" % self.port,
         ]
         command += ["-D%s=%s" % item for item in sorted(defines.items())]
-        command += ["-o", str(self.binary), str(SOURCE)]
+        command += ["-o", str(self.binary)] + [str(path) for path in SOURCES]
         subprocess.run(command, check=True, capture_output=True)
 
     def write_worker(self, body, name="worker"):

@@ -5,6 +5,9 @@ PYTHON ?= python3
 HOST_CC ?= cc
 
 BUILD := build/phase1
+SOURCES := src/alice-kettle.c src/activity.c src/job.c src/listener.c \
+	src/phrases.c src/quasar.c src/voice.c
+HEADERS := $(wildcard src/*.h)
 PROBE := scripts/bsa-management-probe.S
 GATT_SOURCE := scripts/bsa-gatt-search.inc scripts/kettle-cache-attrs.inc
 GATT_FLAGS := --defsym=GATT_REGISTER=1 --defsym=GATT_ENABLE=1 \
@@ -19,9 +22,9 @@ all: $(BUILD)/alice-kettle $(BUILD)/discovery \
 $(BUILD):
 	mkdir -p $@
 
-$(BUILD)/alice-kettle: src/alice-kettle.c | $(BUILD)
+$(BUILD)/alice-kettle: $(SOURCES) $(HEADERS) | $(BUILD)
 	$(ARM_CC) $(ARM_CC_FLAGS) -static -march=armv7-a -mfpu=vfpv3-d16 \
-		-std=c11 -O2 -Wall -Wextra -Werror -o $@ $<
+		-std=c11 -O2 -Wall -Wextra -Werror -Isrc -o $@ $(SOURCES)
 
 $(BUILD)/kettle-status-blobs.inc: scripts/kettle-status-blobs.py | $(BUILD)
 	$(PYTHON) $<
@@ -59,7 +62,7 @@ check-shell:
 	bash -n scripts/run-station.sh
 
 check-c:
-	$(HOST_CC) -std=c11 -O2 -Wall -Wextra -Werror -fsyntax-only src/alice-kettle.c
+	$(HOST_CC) -std=c11 -O2 -Wall -Wextra -Werror -Isrc -fsyntax-only $(SOURCES)
 
 test:
 	HOST_CC="$(HOST_CC)" $(PYTHON) tests/test_voice_client.py
