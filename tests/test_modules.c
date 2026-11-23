@@ -256,28 +256,29 @@ static void test_phrases(void)
     assert(kettle_phrase(&default_aliases, span("какая погода"), &target) ==
            NO_OPERATION);
 
-    char path[] = "/tmp/kettle-phrases-XXXXXX";
-    int fd = mkstemp(path);
+    char valid_path[] = "/tmp/kettle-phrases-XXXXXX";
+    int fd = mkstemp(valid_path);
     assert(fd >= 0);
     const char config[] = "temperature=какая погода\nheat.75=нагрей для термоса\n";
     assert(write(fd, config, strlen(config)) == (ssize_t)strlen(config));
     close(fd);
     struct aliases custom = {0};
-    assert(load_aliases(path, &custom));
+    assert(load_aliases(valid_path, &custom));
     assert(kettle_phrase(&custom, span("какая погода"), &target) == READ_TEMPERATURE);
     target = -1;
     assert(kettle_phrase(&custom, span("нагрей для термоса"), &target) ==
            START_HEAT && target == 75);
-    unlink(path);
+    unlink(valid_path);
 
-    fd = mkstemp(path);
+    char duplicate_path[] = "/tmp/kettle-phrases-XXXXXX";
+    fd = mkstemp(duplicate_path);
     assert(fd >= 0);
     const char duplicate[] = "temperature=какая погода\ntemperature=какая погода\n";
     assert(write(fd, duplicate, strlen(duplicate)) == (ssize_t)strlen(duplicate));
     close(fd);
     struct aliases invalid = {0};
-    assert(!load_aliases(path, &invalid));
-    unlink(path);
+    assert(!load_aliases(duplicate_path, &invalid));
+    unlink(duplicate_path);
 }
 
 static void test_voice(void)
