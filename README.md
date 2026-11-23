@@ -38,12 +38,17 @@ compiler and its sysroot. `CROSS_COMPILE` selects the binutils prefix.
 
 `make check` validates version references, the Python scripts, shell
 syntax, and the C client without the ARM toolchain or the BSA library.
-`make test` compiles the same client for the host and runs the fake-Quasar
-regression suite for recognition, cancellation, timeouts, and pairing.
+`make test` runs module unit tests and the fake-Quasar regression suite for
+recognition, cancellation, timeouts, and pairing.
 `VERSION` is the single source of truth for the package version;
 `pack-yam.sh` derives the archive name and the staged `yam.yaml` from it.
 To cut a release, update `VERSION` and the matching `version:` line in
-`packaging/yam/yam.yaml`, then run `make check`.
+`packaging/yam/yam.yaml`, then follow the [release checklist](docs/release.md).
+
+Timeouts are configurable through `KETTLE_JOB_TIMEOUT_MS`,
+`KETTLE_PAIR_TIMEOUT_MS`, `KETTLE_STOP_GRACE_MS`,
+`KETTLE_SESSION_TIMEOUT_MS` and `KETTLE_SPEECH_TIMEOUT_MS`. Defaults and the
+pairing flow are described in the [architecture](docs/architecture.md).
 
 ## Run one session
 
@@ -185,6 +190,14 @@ The package displays a brighter pink pulse while a kettle command is
 running and Quasar is idle. It releases the indicator before speaking.
 After stopping the background service, use `KETTLE_ACTIVITY_PATTERN= /data/yam/bin/redmond-kettle run`
 to disable the pattern for that session.
+
+## Documentation
+
+- [Gateway architecture](docs/architecture.md) — current components, request lifecycle, timeout settings.
+- [Troubleshooting](docs/troubleshooting.md) — voice, pairing, GATT, build and service problems.
+- [Release checklist](docs/release.md) — versioning, tags, package build and smoke test.
+- [Redmond protocol investigation](docs/redmond-protocol.md) and [Bluetooth stack investigation](docs/bluetooth-stack.md) — protocol evidence.
+- [Investigation history](docs/investigation-history.md) — original feasibility notes and live measurements.
 
 ## Registry publication
 

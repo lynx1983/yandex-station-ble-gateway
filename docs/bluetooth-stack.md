@@ -1,5 +1,10 @@
 # Bluetooth stack investigation
 
+Status: the implemented client path is summarized in
+[Gateway architecture](architecture.md); runtime failures are covered in
+[Troubleshooting](troubleshooting.md). This document preserves the evidence
+used to select the transport.
+
 The initial Station investigation recorded the following BSA launch command on the YNDX-0004:
 
 ```text

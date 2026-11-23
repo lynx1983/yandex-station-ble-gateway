@@ -1,211 +1,88 @@
 # Gateway architecture
 
-> Status: the voice, BLE, and package paths described below are implemented;
-> this document preserves the investigation history. See [README](../README.md)
-> for current install and usage instructions.
+Status: the voice, BLE, and YAM package paths below are implemented. This page
+describes the current design; the original measurements and feasibility notes
+are in [Investigation history](investigation-history.md). See
+[README](../README.md) for install and usage.
 
-## Alice voice input feasibility
+## Components
 
-At revision `b4a1785`, [Soloist's bridge](https://github.com/Horohi/soloist-station-lite/blob/b4a1785/src/soloist-bridge.c#L2783)
-connects as a separate TCP client to Quasar `aliced` on
-`127.0.0.1:9875`. Its
-[voice lifecycle documentation](https://github.com/Horohi/soloist-station-lite/blob/b4a1785/docs/VOICE_REQUESTS.md)
-describes admitting explicitly final AliceState recognition results
-and deduplicating by request ID. This provides a candidate input path.
+| Part | Source | Responsibility |
+| --- | --- | --- |
+| Quasar codec | `src/quasar.c` | Decode recognition frames, deduplicate request IDs in `voice.c`, send cancellation and vocalize directives. |
+| Phrase matcher | `src/phrases.c` | Normalize text, match aliases, parse target temperatures from 35 to 90 °C. |
+| Voice state | `src/voice.c` | Arm on a fresh recognition cycle, reject repeated final IDs and stale replies. |
+| Job runner | `src/job.c` | Fork workers in their own process group, apply timeouts, translate output into spoken replies. |
+| Activity LED | `src/activity.c` | Run the optional Quasar LED pattern while a worker is active. |
+| Listener | `src/listener.c` | Main loop over the loopback socket, job pipes and deadlines. |
+| Entry point | `src/alice-kettle.c` | Parse arguments, load aliases, connect to `127.0.0.1:9875`. |
+| Station worker | `scripts/station-temperature-worker.sh` | Validate configuration, pair a key or run a probe with one fallback scan. |
+| BSA probes | `scripts/bsa-management-probe.S`, `scripts/bsa-gatt-search.inc` | ARM32 clients of the Station's `libbsa.so` for discovery and GATT operations. |
+| Service wrapper | `packaging/yam/service.sh` | `daemon`, `run`, `start`, `stop`, `restart`, `status` with a lock and pidfile. |
 
-The earlier YNDX-0004 SSH snapshot independently found a listener on
-`127.0.0.1:9875` (inode 19500, FD 36 of `maind --platformd`, PID
-3243 at the time). The target's framing and final recognition events
-have yet to be validated.
+## Request lifecycle
 
-1. Observe one spoken kettle-specific phrase via a short-lived client.
-   Record only matching diagnostics and leave Quasar's dialogue and TTS
-   handling untouched.
-2. Add a dry-run mapping for the final phrase, with duplicate request
-   suppression and no BLE actions.
-3. Independently verify BSA GATT and the Ready for Sky protocol with a
-   state or temperature query against the identified kettle.
-4. Join the voice adapter and kettle interface once both work. Heating
-   commands require separate approval and supervised testing.
+1. Alice recognition arrives on the loopback connection as a final
+   AliceState result. `quasar.c` decodes it and `voice.c` admits it once per
+   request ID.
+2. The listener sends dialog cancellation and TTS stop, then starts a worker
+   through `job.c`. A new recognition cycle marks a pending job stale so its
+   reply is discarded.
+3. `service.sh` reads `/data/yam/etc/lynx.redmond-kettle/device.conf` and
+   exports `KETTLE_ADDRESS`; the worker checks the saved key. It tries a
+   direct GATT connection; an open failure allows one scan and retry after
+   checking that BSA's PID and listener inode are unchanged.
+4. The probe writes a single decoded value to stdout. `job.c` maps exit codes
+   and output to a spoken reply: missing key, missing address, busy, started,
+   stopped, reached temperature, or a read error.
+5. The listener sends START_VOCALIZE and keeps the socket open until Quasar
+   reports speaking or the speech deadline expires. A successful pairing
+   re-arms the listener for a fresh command in the same session.
 
-The installed Soloist bridge had an established TCP connection to
-`127.0.0.1:9875`. A bounded, read-only check of new entries in its
-existing log matched the kettle-temperature phrase. This confirms that
-the installed bridge sees the target phrase on this Station. The check
-did not capture raw AliceState frames, verify duplicate handling, or
-invoke BLE. No changes to the installed bridge were needed.
+## Timeout configuration
 
-### Voice dry run
+All values are milliseconds and can be set in the service environment.
+Invalid, zero, or excessively large values fall back to the defaults compiled
+into `src/config.h`. Compile-time `-D` overrides remain available for tests and
+custom builds.
 
-The original ARM32 relay opens the loopback
-socket, copies received bytes to stdout, and exits after 45 seconds.
-The original host parser reads the frames
-from stdin and emits only `dry-run kettle.temperature` for the target
-phrase. Frame contents are processed in memory. The relay sends no
-Quasar directives. The parser has no BLE integration.
+| Variable | Default | Used for |
+| --- | --- | --- |
+| `KETTLE_JOB_TIMEOUT_MS` | 60000 | Worker jobs other than pairing. |
+| `KETTLE_PAIR_TIMEOUT_MS` | 75000 | Physical pairing window. The client exports the resolved value to the worker and adds `KETTLE_STOP_GRACE_MS` before giving up. |
+| `KETTLE_STOP_GRACE_MS` | 1000 | Wait after SIGTERM before SIGKILL. |
+| `KETTLE_SESSION_TIMEOUT_MS` | 90000 | One-shot wait for a recognition event. |
+| `KETTLE_SPEECH_TIMEOUT_MS` | 8000 | Wait for a Quasar speaking transition after a reply. |
 
-```sh
-mkdir -p build/phase1
-arm-linux-gnueabihf-as -o build/phase1/quasar-voice-relay.o build/archive/diagnostics/quasar-voice-relay.S
-arm-linux-gnueabihf-ld -o build/phase1/quasar-voice-relay build/phase1/quasar-voice-relay.o
-```
+The worker converts `KETTLE_PAIR_TIMEOUT_MS` to whole seconds with `ceil`, so
+one configured value drives both sides of the pairing flow.
 
-For a live test, stream the relay over SSH to a temporary executable
-on the Station and pipe its stdout into the host parser. Wait for the
-relay to start before speaking. Synthetic frames verified that a partial
-result is ignored, its final result is accepted once, a repeated final
-with the same ID is ignored, and a new request ID is accepted.
-
-The live temperature phrase produced one dry-run event through the
-separate Quasar client. The first relay build did not time out and was
-stopped explicitly. The timer now uses `setitimer`, and a two-second
-Station test confirmed SIGALRM termination. Soloist remained running
-with PID 2065. Duplicate handling was verified using synthetic frames.
-
-### Handling the native Alice reply
-
-The user observed the native "kettle is not configured" reply during the
-voice dry run. Receiving a final AliceState event is observational.
-A live handler needs to suppress the native reply for a matched request
-and supply its own spoken response. Soloist sends dialog and TTS
-cancellation directives and also pauses playback. For the kettle
-adapter, evaluate dialog cancellation independently of playback control.
-
-The first intervention test should use the exact temperature intent and
-a fresh final result. Test whether one cancellation, sent immediately
-after recognition, beats the native reply on this firmware. Compare with
-an ordinary Alice request. Keep the deployed Soloist independent. Enable
-intervention only with a working local temperature response or a local
-error response for a failed read.
-
-## Standalone Station deployment
-
-The YNDX-0004 exposes two root buses under DWC3/xHCI, USB device nodes
-under `/dev/bus/usb`, and `/usr/lib/libusb-1.0.so.0`. The running
-kernel has `CONFIG_BT=y`, `CONFIG_BT_LE=y`, and
-`CONFIG_MODULES=y`, with `CONFIG_BT_HCIBTUSB` unset. No btusb module
-or bluetoothd was found. The DWC2 USB device controller is distinct
-from the enumerated host root buses. The snapshot contained no
-external USB device. The
-[Station Mini specification](https://alice.yandex.ru/support/ru/station/meet/characteristics-mini1)
-identifies the USB-C port as the power input. Host enumeration through
-the exposed connector while powering the Station remains unverified.
-
-The next hardware gate is to see `0a5c:21ec` in Station-side `lsusb`
-using a supported data and power arrangement. If it enumerates, assess
-a compatible btusb module plus BlueZ, or a user-space USB HCI transport
-through libusb. Both options can target the second controller without
-taking the Broadcom UART from BSA. Neither path is deployed.
-
-The built-in-controller route remains separate. Existing BSA opens a
-link but has failed during cache processing. Investigate that behavior
-offline before another live cache experiment on this Station.
-
-### End-to-end voice prototype
-
-`src/alice-kettle.c` is a one-shot Quasar client for the exact
-water-temperature intent. It requires a fresh recognition cycle,
-an explicit final result, and deduplicates request IDs in memory.
-It sends dialog cancellation and TTS stop for a matched request,
-then voices the temperature or a read error via START_VOCALIZE.
-A new recognition cycle suppresses a pending stale reply.
-
-`scripts/station-temperature-worker.sh` runs fresh BLE discovery and
-the firmware-specific temperature probe. It returns only the decoded
-temperature to the voice client. The prototype stages the worker and
-credential under `/tmp` for the test; the YAM package later moved them
-to package-owned storage and added the long-lived service described in
-the README.
-
-The host client is split into small C modules: `quasar.c` handles frame
-decoding and directives, `phrases.c` owns aliases and target parsing,
-`voice.c` deduplicates recognition events, `job.c` manages worker
-processes and replies, `activity.c` drives the LED, and `listener.c`
-runs the main loop. `alice-kettle.c` only configures signals and the
-loopback connection. `make test` compiles these modules for the host and
-exercises them against a fake Quasar listener.
-
-The host loopback test sent a retained final, an unrelated utterance,
-a partial target, and a repeated target final. It observed exactly
-one cancellation pair and a temperature TTS directive. Quasar's
-handling of those directives and audible output require a Station
-test. The one-shot client exits after a reply or a 90-second wait
-for a recognition event; `--continuous` keeps it running for the
-packaged service.
-
-Build the Station voice client with an ARM hard-float cross compiler:
+## Build and verification
 
 ```sh
-arm-linux-gnueabihf-gcc -static -march=armv7-a -mfpu=vfpv3-d16 \
-  -std=c11 -O2 -Wall -Wextra -Werror \
-  -o build/phase1/alice-kettle src/alice-kettle.c
+make check   # version, Python, shell, and C syntax; no ARM toolchain needed
+make test    # module unit tests plus fake-Quasar integration tests
+make         # ARM32 BSA probes and the voice client
+make package # stage and pack a YAM archive
 ```
 
-Stage the client, `discovery`, `gatt-temperature`, and the worker
-together in a private temporary directory. The BSA probe expects the
-key at `/tmp/ble-temp/key`; stage it with mode 0600 and remove it
-after testing. Run `alice-kettle` with the absolute worker path.
+`src/*.c` is compiled together for ARM and for the host; `VERSION` is the only
+package version source. The voice client needs a static ARM hard-float musl
+build for packaging, while the probes use Station-compatible glibc and
+`libbsa.so`. See [Release checklist](release.md) for the full sequence.
 
-On the first live run the bridge read 62 °C and cancelled the native
-dialog, but the user heard silence. That build closed its Quasar socket
-immediately after sending TTS. The follow-up kept the socket open,
-read 60 °C, and observed Quasar enter SPEAKING after START_VOCALIZE.
-The speaking transition confirms Quasar accepted the directive.
-Physical audio and suppression of any competing reply on the
-follow-up are awaiting listener confirmation.
+## Operational notes
 
-#### Live latency baseline
+The packaged service runs as `daemon` with `/data/yam/var/lynx.redmond-kettle`
+as its state directory. Mutable phrases and the verified key live there; the
+key is mode `0600`. Syslog messages use the tag `redmond-kettle`. On this
+firmware `/var/log` points to `/tmp`, so logs do not survive a reboot.
 
-A live request returned 56 °C. Measured from admission of the final
-recognition result, cancellation was sent at 1 ms, START_VOCALIZE at
-43,050 ms, and Quasar entered SPEAKING at 43,245 ms. The worker measured
-7.01 seconds for BLE discovery and 36.01 seconds for its GATT phase.
-The successful GATT path has six fixed six-second sleeps: open, cache
-preparation, search, and three write completions. Discovery currently
-waits a fixed seven seconds. These timings measure from recognized text,
-excluding speech recognition itself. Service PIDs stayed unchanged.
+For symptom-based guidance, see [Troubleshooting](troubleshooting.md).
 
-The optimized Station build returned 52 °C. Cancellation was sent
-within the first millisecond, BLE discovery took 4.01 s, GATT took
-0.47 s, and START_VOCALIZE was sent at 4.507 s. Quasar entered
-SPEAKING at 4.807 s, down from 43.245 s on the fixed-delay build.
-BSA, Quasar and Soloist PIDs stayed unchanged. The test was a one-shot
-run and removed the temporary key and executables on exit.
+## Reference documents
 
-The listener confirmed an audible response in about six seconds.
-
-The temperature worker now tries a direct GATT connection first. Only
-a GATT open failure can trigger a single fresh scan and retry. The
-worker checks BSA's original PID and listener inode before proceeding
-with the fallback. Two live direct reads returned 50 °C and skipped
-discovery, with GATT phase times of 0.11 and 0.45 seconds. Host
-simulation verified the fallback and its stop conditions.
-
-The repeated direct-first test read 48 °C without a scan and reached
-SPEAKING in 641 ms. The listener confirmed the correct audible
-temperature and the absence of the native default reply.
-
-## M2 package format decision
-
-Use a YAM v2 `.yampkg` for the first installed build. The Station
-already has YAM v2 under `/data/yam`, and its installed Soloist bridge
-runs from a YAM package directory. The kettle payload comprises a
-Linux ARM32 application, firmware-linked BSA probes, a shell worker,
-and default phrases. YAM can package these files together.
-
-YAM stores service declarations as metadata and does not run a
-supervisor, so the package ships its own `daemon` supervisor with a
-lock and pidfile plus an `/etc/init.d/S99redmond-kettle` hook. The
-long-lived listener and explicit start/stop/status entry points live
-in `packaging/yam/service.sh`. Mutable phrases and the negotiated key
-stay in package-owned persistent storage outside the versioned payload;
-the key is saved with mode 0600 after successful pairing.
-
-The [WASM plugin format](https://github.com/hertebeznat-cell/alice-homebrew/blob/main/docs/PLUGIN_GUIDE.md)
-does not provide the local IPC and executable access this payload uses.
-The [native plugin SDK](https://github.com/hertebeznat-cell/alice-homebrew/blob/main/docs/NATIVE_SDK.md)
-provides a configuration UI, persistent data, and a managed lifecycle,
-but requires a single static AArch64 executable. Our probes are ARM32
-and use the Station's dynamic libbsa. A native frontend would need a
-separate bridge to the packaged service or a wrapper around the ARM32
-payload. Consider that frontend after the package runs independently.
+- [Investigation history](investigation-history.md) — original feasibility notes and live measurements.
+- [Bluetooth stack investigation](bluetooth-stack.md) — BSA transport evidence.
+- [Redmond protocol investigation](redmond-protocol.md) — GATT handles and Ready for Sky frames.
+- [Release checklist](release.md) — versioning, tests, tags, package build.

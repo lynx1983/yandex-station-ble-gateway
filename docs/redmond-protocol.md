@@ -1,8 +1,10 @@
 # Redmond protocol
 
 Status: temperature, status, stop, boil, and target-temperature heating are
-implemented. This document keeps the protocol investigation; see
-[README](../README.md) for current usage.
+implemented. This document keeps the protocol investigation; the implemented
+data path is in [Gateway architecture](architecture.md) and usage is in
+[README](../README.md). Heating targets of 35–90 °C and the new high-temperature
+notification log still need a physical-kettle check.
 
 ## GATT inventory from WSL
 
