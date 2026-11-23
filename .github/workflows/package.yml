@@ -1,0 +1,54 @@
+name: Build YAM package
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: [self-hosted, linux, yam-build]
+    timeout-minutes: 15
+    env:
+      ARM_CC: ${{ vars.YAM_ARM_CC || 'arm-linux-musleabihf-gcc' }}
+      ARM_CC_FLAGS: ${{ vars.YAM_ARM_CC_FLAGS }}
+      BSA_LIB: ${{ vars.YAM_BSA_LIB }}
+      MUSL_COPYRIGHT: ${{ vars.YAM_MUSL_COPYRIGHT }}
+      YAM_PROFILES: ${{ vars.YAM_PROFILES }}
+      YAM_PUBLISH: ${{ vars.YAM_PUBLISH || 'yam-publish' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check tag and project version
+        run: |
+          make check
+          version=$(cat VERSION)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            printf 'Tag %s must match VERSION (v%s)\n' "$GITHUB_REF_NAME" "$version" >&2
+            exit 1
+          fi
+      - name: Build and pack
+        id: build
+        run: |
+          : "${BSA_LIB:?Set YAM_BSA_LIB to the library path on the runner}"
+          mkdir -p build/phase1
+          install -m 644 "$BSA_LIB" build/phase1/libbsa.so
+          make all
+          make package
+          version=$(cat VERSION)
+          cd build/dist
+          artifact="redmond-kettle-$version-yandexmini.yampkg"
+          sha256sum "$artifact" > "$artifact.sha256"
+          printf "artifact=%s\n" "$artifact" >> "$GITHUB_OUTPUT"
+      - name: Upload package and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: redmond-kettle-${{ github.ref_name }}-yandexmini
+          path: |
+            build/dist/${{ steps.build.outputs.artifact }}
+            build/dist/${{ steps.build.outputs.artifact }}.sha256
+          if-no-files-found: error

@@ -87,3 +87,29 @@ yam-publish publish --source packaging/yam --target yandexmini \
 ```
 
 See the [YAM publishing guide](https://github.com/nyakokitsu/yam/blob/main/docs/PUBLISHING.md).
+
+## Build on GitHub Actions
+
+`.github/workflows/package.yml` builds the package when a `v*` tag is
+pushed. The tagged commit must contain the workflow, and its `VERSION`
+must match the tag without the leading `v`. The job uploads the
+`.yampkg` and its SHA-256 checksum to the workflow run.
+
+Register a dedicated Linux self-hosted runner with the `yam-build` label
+and prepare GNU Make, Python 3, a native C compiler, ARM hard-float
+binutils, an ARM musl cross-compiler and the official YAM packer. Set these
+repository Actions variables to paths readable by the runner account:
+
+| Variable | Value |
+| --- | --- |
+| `YAM_BSA_LIB` | Absolute path to the compatible Station copy of `libbsa.so`. |
+| `YAM_MUSL_COPYRIGHT` | Absolute path to the matching musl `COPYRIGHT`. |
+| `YAM_PROFILES` | Absolute path to the YAM profiles directory. |
+| `YAM_ARM_CC` | Compiler command, defaults to `arm-linux-musleabihf-gcc`. |
+| `YAM_ARM_CC_FLAGS` | Extra compiler flags, if needed by the toolchain. |
+| `YAM_PUBLISH` | Packer executable, defaults to `yam-publish`. |
+
+Keep `libbsa.so` outside the checkout. Run the packaging job only for
+trusted tags on the dedicated runner. The job needs read-only GitHub
+permissions. Publishing the resulting archive to YAM Registry or
+attaching it to a GitHub Release is a separate operation.
