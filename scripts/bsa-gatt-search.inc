@@ -841,10 +841,17 @@ print_temperature_store:
 
 print_temperature_hundreds:
     cmp r6, #100
-    bne print_temperature_return
+    bne print_temperature_invalid
     mov r0, #2
     add r1, r1, #18
     mov r2, #temperature_hundreds_length
+    mov r7, #4
+    svc #0
+    b print_temperature_return
+print_temperature_invalid:
+    mov r0, #2
+    ldr r1, =temperature_invalid
+    mov r2, #temperature_invalid_length
     mov r7, #4
     svc #0
 print_temperature_return:
@@ -902,7 +909,9 @@ gatt_log_notification:
     push {r4, r5, r6, r7, r8, lr}
     mov r6, r1
     mov r4, r1
-    mov r5, #120
+    /* The event window is 120 bytes and a stored frame is 24 bytes, so only
+     * 97 start offsets can be tested without reading past its end. */
+    mov r5, #97
 gatt_notification_scan:
     ldrb r3, [r4]
     cmp r3, #0x55
@@ -1023,6 +1032,9 @@ temperature_text:
 temperature_hundreds:
     .ascii "temperature_c: 100\n"
 .equ temperature_hundreds_length, . - temperature_hundreds
+temperature_invalid:
+    .ascii "temperature out of range\n"
+.equ temperature_invalid_length, . - temperature_invalid
 target_temperature_text:
     .ascii "target_temp_c: 00\n"
     .ascii "target_temp_c: 100\n"

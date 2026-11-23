@@ -93,6 +93,15 @@ enum operation { NO_OPERATION, READ_TEMPERATURE, STOP_HEATING, READ_STATUS, STAR
 
 #define PHRASE_SIZE 256
 #define PHRASE_LIMIT 64
+#ifndef JOB_TIMEOUT_MS
+#define JOB_TIMEOUT_MS 60000
+#endif
+#ifndef PAIR_TIMEOUT_MS
+#define PAIR_TIMEOUT_MS 75000
+#endif
+#ifndef JOB_STOP_GRACE_MS
+#define JOB_STOP_GRACE_MS 1000
+#endif
 
 struct alias { enum operation operation; char phrase[PHRASE_SIZE]; int target; };
 struct aliases { struct alias entries[PHRASE_LIMIT]; size_t count; };
@@ -374,9 +383,10 @@ static long long now(void)
 
 struct job {
     pid_t pid;
-    int fd, wrapped, stale, target;
+    int fd, wrapped, stale, target, timed_out;
     enum operation operation;
     size_t length;
+    long long deadline;
     char output[32];
 };
 
@@ -388,6 +398,8 @@ static int start_job(struct job *job, const char *worker, int fd, int wrapped,
         return -1;
     pid_t pid = fork();
     if (pid == 0) {
+        /* A worker owns its process group so a timeout can stop its probes. */
+        setpgid(0, 0);
         close(fd);
         close(pipes[0]);
         if (dup2(pipes[1], STDOUT_FILENO) < 0)
@@ -407,23 +419,67 @@ static int start_job(struct job *job, const char *worker, int fd, int wrapped,
         close(pipes[0]);
         return -1;
     }
+    /* The child also does this; either side winning the race is enough. */
+    (void)setpgid(pid, pid);
+    long long timeout = operation == PAIR_KEY ? PAIR_TIMEOUT_MS : JOB_TIMEOUT_MS;
     *job = (struct job){.pid = pid, .fd = pipes[0], .wrapped = wrapped,
-                        .operation = operation, .target = target};
+                        .operation = operation, .target = target,
+                        .deadline = now() + timeout};
     return 0;
+}
+
+static void signal_job(pid_t pid, int signal_number)
+{
+    if (pid <= 0)
+        return;
+    /* A timeout must stop the probe and any children holding its stdout. */
+    if (kill(-pid, signal_number) < 0)
+        kill(pid, signal_number);
+}
+
+static pid_t wait_job(pid_t pid, int *status, int bounded)
+{
+    long long deadline = bounded ? now() + JOB_STOP_GRACE_MS : 0;
+    pid_t waited;
+    for (;;) {
+        waited = waitpid(pid, status, bounded ? WNOHANG : 0);
+        if (waited == pid || (waited < 0 && errno != EINTR))
+            break;
+        if (waited == 0 && (!bounded || now() >= deadline))
+            break;
+        const struct timespec pause = {.tv_nsec = 10000000};
+        nanosleep(&pause, NULL);
+    }
+    return waited;
 }
 
 static int finish_job(struct job *job, int fd)
 {
-    int status;
+    int status = 0;
     close(job->fd);
     job->fd = -1;
-    pid_t waited;
-    do {
-        waited = waitpid(job->pid, &status, 0);
-    } while (waited < 0 && errno == EINTR);
+    pid_t waited = wait_job(job->pid, &status, 1);
+    if (waited == 0) {
+        signal_job(job->pid, SIGKILL);
+        do {
+            waited = waitpid(job->pid, &status, 0);
+        } while (waited < 0 && errno == EINTR);
+    }
     job->pid = 0;
-    if (job->stale)
+    job->deadline = 0;
+    int stale = job->stale;
+    int timed_out = job->timed_out;
+    job->stale = 0;
+    job->timed_out = 0;
+    if (stale)
         return 0;
+    if (timed_out) {
+        fprintf(stderr, "Kettle job timed out: %s\n", operation_names[job->operation]);
+        const char *message = job->operation == PAIR_KEY
+            ? "Привязка чайника не завершилась вовремя. Попробуйте ещё раз."
+            : "Не удалось дождаться ответа от чайника. Попробуйте ещё раз.";
+        return send_method(fd, job->wrapped, 18, message);
+    }
     if (waited > 0 && WIFEXITED(status) && WEXITSTATUS(status) == 21)
         return send_method(fd, job->wrapped, 18,
                            "Укажите адрес чайника в настройках службы.");
@@ -457,9 +513,7 @@ static int finish_job(struct job *job, int fd)
     if (job->operation == START_HEAT) {
         char reply[192];
         const char *message = "Не удалось подтвердить запуск нагрева.";
-        if (job->target == 0)
-            message = "Задайте целую температуру от 35 до 90 градусов.";
-        else if (success && strcmp(job->output, "busy\n") == 0)
+        if (success && strcmp(job->output, "busy\n") == 0)
             message = "Чайник уже работает.";
         else if (success && strcmp(job->output, "reached\n") == 0)
             message = "Вода уже достигла заданной температуры.";
@@ -639,6 +693,16 @@ static int listen_for_commands(int fd, const char *worker, const struct aliases 
             voice.previous_started = 0;
             deadline = now() + 90000;
         }
+        if (job.pid && job.deadline && now() >= job.deadline) {
+            fprintf(stderr, "Kettle job exceeded its time limit: %s\n",
+                    operation_names[job.operation]);
+            activity_pending = 0;
+            stop_activity_led(&activity_led);
+            job.deadline = 0;
+            job.timed_out = 1;
+            reply_at = now();
+            signal_job(job.pid, SIGTERM);
+        }
         if (!continuous && !speech_deadline && now() >= deadline && !job.pid)
             break;
         struct pollfd fds[] = {{fd, POLLIN, 0}, {reply_at ? -1 : job.fd, POLLIN, 0}};
@@ -697,7 +761,9 @@ static int listen_for_commands(int fd, const char *worker, const struct aliases 
                 }
                 int target = 0;
                 enum operation operation = (speech_deadline || pairing) ? NO_OPERATION : admit(&voice, request, &job, aliases, &target);
-                if (operation && start_job(&job, worker, fd, request.wrapped, operation, target) == 0) {
+                int invalid_heat = operation == START_HEAT && target == 0;
+                if (operation && (invalid_heat ||
+                    start_job(&job, worker, fd, request.wrapped, operation, target) == 0)) {
                     admitted_at = now();
                     activity_pending = activity_pattern && activity_pattern[0] == '/';
                     fprintf(stderr, "Kettle request accepted: %s\n", operation_names[operation]);
@@ -705,6 +771,16 @@ static int listen_for_commands(int fd, const char *worker, const struct aliases 
                         send_method(fd, request.wrapped, 14, NULL) < 0)
                         goto cleanup;
                     fprintf(stderr, "Cancellation sent; elapsed_ms=%lld\n", now() - admitted_at);
+                    if (invalid_heat) {
+                        fprintf(stderr, "Rejected heat request with invalid target\n");
+                        if (send_method(fd, request.wrapped, 18,
+                            "Задайте целую температуру от 35 до 90 градусов.") < 0)
+                            goto cleanup;
+                        result = 0;
+                        speaking = 0;
+                        speech_mode = UINT32_MAX;
+                        speech_deadline = now() + 8000;
+                    }
                 }
                 consumed += 4 + size;
             }
@@ -765,8 +841,12 @@ cleanup:
         fprintf(stderr, "Quasar speaking state was not observed\n");
     if (job.pid) {
         close(job.fd);
-        kill(job.pid, SIGTERM);
-        while (waitpid(job.pid, NULL, 0) < 0 && errno == EINTR) {}
+        signal_job(job.pid, SIGTERM);
+        int status;
+        if (wait_job(job.pid, &status, 1) == 0) {
+            signal_job(job.pid, SIGKILL);
+            while (waitpid(job.pid, &status, 0) < 0 && errno == EINTR) {}
+        }
     }
     if (continuous)
         return stopping ? 0 : 1;

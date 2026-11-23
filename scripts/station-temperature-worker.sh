@@ -6,6 +6,16 @@ work=${KETTLE_RUN_DIR:-${0%/*}}
 bin=${0%/*}
 libexec=${KETTLE_LIBEXEC_DIR:-$bin}
 
+require_commands() {
+    for command in "$@"; do
+        command -v "$command" >/dev/null 2>&1 || {
+            printf 'Missing required command: %s\n' "$command" >&2
+            exit 1
+        }
+    done
+}
+require_commands awk pidof mktemp grep wc ln cp rm rmdir sleep
+
 listener() {
     awk '$4 == "00010000" && $8 ~ /^\/tmp\/(\.\/)?bt-daemon-socket$/ {print $7}' /proc/net/unix
 }

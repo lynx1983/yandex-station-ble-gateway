@@ -1,8 +1,19 @@
 #!/bin/sh
 set -eu
 umask 077
-yam_root=${YAM_ROOT:-/data/yam}
+
+require_commands() {
+    for command in "$@"; do
+        command -v "$command" >/dev/null 2>&1 || {
+            printf 'redmond-kettle: missing required command: %s\n' "$command" >&2
+            exit 1
+        }
+    done
+}
+
+require_commands readlink awk
 entry=$(readlink -f "$0")
+yam_root=${YAM_ROOT:-/data/yam}
 pkg=${YAM_PKG:-${entry%/bin/*}}
 runtime=${YAM_RUN:-/tmp/yam}/lynx.redmond-kettle
 pidfile=$runtime/pid
@@ -66,6 +77,7 @@ run_managed() {
 
 case "${1:-run}" in
     start|stop|restart)
+        require_commands flock setsid logger sleep
         mkdir -p "$runtime"
         exec 9>"$runtime/control.lock"
         flock 9
@@ -84,8 +96,10 @@ case "${1:-run}" in
         printf 'redmond-kettle stopped\n'
         exit 1
         ;;
-    daemon) run_managed; exit ;;
-    run) ;;
+    daemon) require_commands flock mkfifo logger rm; run_managed; exit ;;
+    run)
+        require_commands mkdir ls id mktemp wc head ln rm sleep cat chmod
+        ;;
     *) printf 'Usage: redmond-kettle {start|stop|restart|status|run}\n' >&2; exit 2 ;;
 esac
 config_dir=${YAM_ETC:-$yam_root/etc}/lynx.redmond-kettle
