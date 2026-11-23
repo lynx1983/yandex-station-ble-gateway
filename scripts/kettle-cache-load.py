@@ -29,6 +29,7 @@ bta_gattc_rebuild_cache (0xcb354) and bta_gattc_add_attr_to_cache (0xc9990):
 server copied during the traced discovery (tail 0xca9e).
 """
 
+import os
 import struct
 import sys
 
@@ -47,7 +48,20 @@ PROP_WRITE = 0x08
 PROP_NOTIFY = 0x10
 
 NUS_BASE = "6e4000{:02x}-b5a3-f393-e0a9-e50e24dcca9e"
-KETTLE_ADDRESS = bytes.fromhex("fb88f23934fb")
+# Placeholder only: the caller overwrites bytes 8-13 with the real peer
+# address. Set KETTLE_ADDRESS to build a concrete image.
+DEFAULT_ADDRESS = "AA:BB:CC:DD:EE:FF"
+
+
+def parse_address(text):
+    compact = text.replace(":", "").replace("-", "")
+    try:
+        raw = bytes.fromhex(compact)
+    except ValueError:
+        raw = b""
+    if len(raw) != 6:
+        raise ValueError("address must be six hex bytes: %r" % text)
+    return raw
 
 
 def uuid16(value):
@@ -94,9 +108,13 @@ def kettle_attributes():
     ]
 
 
-def build_cache_load(conn_id, address=KETTLE_ADDRESS, attr_index=0):
+def build_cache_load(conn_id, address=None, attr_index=0):
     if not 0 <= conn_id <= 0xFFFF:
         raise ValueError(conn_id)
+    if address is None:
+        address = parse_address(os.environ.get("KETTLE_ADDRESS", DEFAULT_ADDRESS))
+    elif isinstance(address, str):
+        address = parse_address(address)
     if len(address) != 6:
         raise ValueError(address)
     attrs = kettle_attributes()
@@ -146,17 +164,18 @@ def check(message, conn_id, address):
     notify = message[HEADER_SIZE + 3 * ATTR_SIZE:HEADER_SIZE + 4 * ATTR_SIZE]
     if notify[4:20] != bytes.fromhex(NUS_BASE.format(0x03).replace("-", ""))[::-1]:
         raise AssertionError("notify uuid byte order")
-        if struct.unpack_from("<HHB", notify, 20) != (0x000B, 0x000B, ATTR_CHAR) or notify[26] != PROP_NOTIFY:
-            raise AssertionError("notify characteristic")
-        write = message[HEADER_SIZE + 5 * ATTR_SIZE:HEADER_SIZE + 6 * ATTR_SIZE]
-        if struct.unpack_from("<HHB", write, 20) != (0x000E, 0x000E, ATTR_CHAR):
-            raise AssertionError("write characteristic range")
+    if struct.unpack_from("<HHB", notify, 20) != (0x000B, 0x000B, ATTR_CHAR) or notify[26] != PROP_NOTIFY:
+        raise AssertionError("notify characteristic")
+    write = message[HEADER_SIZE + 5 * ATTR_SIZE:HEADER_SIZE + 6 * ATTR_SIZE]
+    if struct.unpack_from("<HHB", write, 20) != (0x000E, 0x000E, ATTR_CHAR):
+        raise AssertionError("write characteristic range")
 
 
 def main():
     conn_id = 5
-    message = build_cache_load(conn_id)
-    check(message, conn_id, KETTLE_ADDRESS)
+    address = parse_address(os.environ.get("KETTLE_ADDRESS", DEFAULT_ADDRESS))
+    message = build_cache_load(conn_id, address)
+    check(message, conn_id, address)
     print("cache-load message: %d bytes, num_attr=8, more=0, attrs at offset 16" % len(message))
     print("180a end handle 0x0011; conn_id and address are filled by the caller")
     return 0

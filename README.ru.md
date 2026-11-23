@@ -28,6 +28,8 @@ make
 
 Переменные `ARM_CC` и `ARM_CC_FLAGS` позволяют выбрать локальный кросс-компилятор и его sysroot. `CROSS_COMPILE` задаёт префикс binutils.
 
+`make check` проверяет согласованность ссылок на версию, Python-скрипты, синтаксис shell и C-клиент без ARM-тулчейна и библиотеки BSA. `make test` собирает тот же клиент для хоста и запускает регрессионные тесты с фейковым Quasar: распознавание, отмена, таймауты и привязка. Файл `VERSION` — единственный источник версии пакета: `pack-yam.sh` берёт из него имя архива и версию в `yam.yaml`. Для выпуска обновите `VERSION` и строку `version:` в `packaging/yam/yam.yaml`, затем выполните `make check`.
+
 ## Запуск одной сессии
 
 ```sh
@@ -71,7 +73,7 @@ heat.75=нагрей воду в чайнике для термоса
 
 ## Установка через Alice Homebrew
 
-Загрузите локальный пакет `redmond-kettle-1.2.5-yandexmini.yampkg` через Alice Homebrew. Профиль `yandexmini` предназначен для Станции Мини первого поколения. Пробы используют штатный загрузчик ARM hard-float и библиотеку BSA на Станции.
+Загрузите локальный пакет `redmond-kettle-<версия>-yandexmini.yampkg` (версия берётся из файла `VERSION`) через Alice Homebrew. Профиль `yandexmini` предназначен для Станции Мини первого поколения. Пробы используют штатный загрузчик ARM hard-float и библиотеку BSA на Станции.
 
 Перед обновлением завершите сессии, запущенные на переднем плане, через Ctrl+C. Установщик запускает фоновую службу и создаёт `/etc/init.d/S99redmond-kettle` для автозапуска. При первой установке или обновлении с 1.1.x впишите BLE-адрес чайника одной строкой в формате `AA:BB:CC:DD:EE:FF` в `/data/yam/etc/lynx.redmond-kettle/device.conf`, затем перезапустите службу. Спросите Алису о температуре воды и, если она предложит привязку, выполните её и повторите вопрос.
 
@@ -121,7 +123,7 @@ MUSL_COPYRIGHT=/path/to/musl/COPYRIGHT \
 
 ```sh
 yam-publish publish --source packaging/yam --target yandexmini \
-  --artifact build/dist/redmond-kettle-1.2.5-yandexmini.yampkg
+  --artifact "build/dist/redmond-kettle-$(cat VERSION)-yandexmini.yampkg"
 ```
 
 [Руководство по публикации YAM](https://github.com/nyakokitsu/yam/blob/main/docs/PUBLISHING.md)

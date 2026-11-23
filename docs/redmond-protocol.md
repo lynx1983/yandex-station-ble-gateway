@@ -1,6 +1,8 @@
 # Redmond protocol
 
-Investigation is scheduled for Phase 3.
+Status: temperature, status, stop, boil, and target-temperature heating are
+implemented. This document keeps the protocol investigation; see
+[README](../README.md) for current usage.
 
 ## GATT inventory from WSL
 
@@ -82,9 +84,9 @@ was sent in this capture.
 | --- | --- | --- |
 | Read current temperature, operating state, mode, target, and error | Authenticate (FF), then get status (06) | Status read verified on this kettle through the Station. |
 | Read firmware version | Get version (01) | Reference implementation only. Diagnostics use. |
-| Stop heating | Turn off (04), then read status (06) | Requires a supervised functional test. |
-| Start boiling | Set boil mode (05), turn on (03), then read status (06) | Requires explicit authorization and supervised testing. |
-| Heat to a selected temperature | Set mode and target (05), turn on (03), then read status (06) | Defer until boil and stop are verified. Verify the valid range on the physical kettle. |
+| Stop heating | Turn off (04), then read status (06) | Verified on this kettle. |
+| Start boiling | Set boil mode (05), turn on (03), then read status (06) | Verified on this kettle. |
+| Heat to a selected temperature | Set mode and target (05), turn on (03), then read status (06) | Implemented; the 35–90 °C range is untested on this kettle. |
 
 Use the module operations as the public interface. Keep authentication,
 sequence numbers, packet framing and notification validation inside
