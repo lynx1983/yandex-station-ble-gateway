@@ -16,6 +16,23 @@ require_commands() {
 }
 require_commands awk pidof mktemp grep wc ln cp rm rmdir sleep
 
+# The voice client exports this value when it starts the pair job; 75000 ms is
+# the fallback for manual pairing sessions.
+pair_timeout_ms() {
+    value=${KETTLE_PAIR_TIMEOUT_MS:-75000}
+    case "$value" in
+        ''|*[!0-9]*|0*)
+            printf 'KETTLE_PAIR_TIMEOUT_MS must be a positive integer\n' >&2
+            return 1
+            ;;
+    esac
+    if [ "${#value}" -gt 7 ] || [ "$value" -gt 3600000 ]; then
+        printf 'KETTLE_PAIR_TIMEOUT_MS is too large\n' >&2
+        return 1
+    fi
+    printf '%s\n' "$value"
+}
+
 listener() {
     awk '$4 == "00010000" && $8 ~ /^\/tmp\/(\.\/)?bt-daemon-socket$/ {print $7}' /proc/net/unix
 }
@@ -39,8 +56,10 @@ pair_key() {
     trap 'rm -f "$key_path"' EXIT
     trap 'exit 143' HUP INT TERM
     export KETTLE_KEY_AVAILABLE=1
+    timeout_ms=$(pair_timeout_ms) || exit 2
+    pair_seconds=$(( (timeout_ms + 999) / 1000 ))
     read -r uptime _ < /proc/uptime
-    deadline=$((${uptime%%.*} + 35))
+    deadline=$((${uptime%%.*} + pair_seconds))
     while :; do
         read -r uptime _ < /proc/uptime
         [ "${uptime%%.*}" -lt "$deadline" ] || return 1

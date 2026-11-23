@@ -7,23 +7,37 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "config.h"
 #include "job.h"
 #include "quasar.h"
 #include "util.h"
 
 #ifndef JOB_TIMEOUT_MS
-#define JOB_TIMEOUT_MS 60000
+#define JOB_TIMEOUT_MS DEFAULT_JOB_TIMEOUT_MS
 #endif
 #ifndef PAIR_TIMEOUT_MS
-#define PAIR_TIMEOUT_MS 75000
+#define PAIR_TIMEOUT_MS DEFAULT_PAIR_TIMEOUT_MS
 #endif
 #ifndef JOB_STOP_GRACE_MS
-#define JOB_STOP_GRACE_MS 1000
+#define JOB_STOP_GRACE_MS DEFAULT_STOP_GRACE_MS
 #endif
+
+static long long stop_grace_ms(void)
+{
+    return config_ms("KETTLE_STOP_GRACE_MS", JOB_STOP_GRACE_MS);
+}
+
+static long long job_timeout_ms(enum operation operation)
+{
+    return operation == PAIR_KEY
+        ? config_ms("KETTLE_PAIR_TIMEOUT_MS", PAIR_TIMEOUT_MS)
+        : config_ms("KETTLE_JOB_TIMEOUT_MS", JOB_TIMEOUT_MS);
+}
 
 int start_job(struct job *job, const char *worker, int fd, int wrapped,
               enum operation operation, int target)
 {
+    long long timeout = job_timeout_ms(operation);
     int pipes[2];
     if (pipe(pipes) < 0)
         return -1;
@@ -36,6 +50,12 @@ int start_job(struct job *job, const char *worker, int fd, int wrapped,
         if (dup2(pipes[1], STDOUT_FILENO) < 0)
             _exit(126);
         close(pipes[1]);
+        if (operation == PAIR_KEY) {
+            /* One configured wait is shared with the worker's button loop. */
+            char value[32];
+            snprintf(value, sizeof(value), "%lld", timeout);
+            setenv("KETTLE_PAIR_TIMEOUT_MS", value, 1);
+        }
         if (operation == START_HEAT) {
             char argument[16];
             snprintf(argument, sizeof(argument), "%d", target);
@@ -52,7 +72,9 @@ int start_job(struct job *job, const char *worker, int fd, int wrapped,
     }
     /* The child also does this; either side winning the race is enough. */
     (void)setpgid(pid, pid);
-    long long timeout = operation == PAIR_KEY ? PAIR_TIMEOUT_MS : JOB_TIMEOUT_MS;
+    /* The pairing worker must be able to finish before the client gives up. */
+    if (operation == PAIR_KEY)
+        timeout += stop_grace_ms();
     *job = (struct job){.pid = pid, .fd = pipes[0], .wrapped = wrapped,
                         .operation = operation, .target = target,
                         .deadline = now() + timeout};
@@ -75,7 +97,7 @@ void terminate_job(pid_t pid)
 
 static pid_t wait_job(pid_t pid, int *status, int bounded)
 {
-    long long deadline = bounded ? now() + JOB_STOP_GRACE_MS : 0;
+    long long deadline = bounded ? now() + stop_grace_ms() : 0;
     pid_t waited;
     for (;;) {
         waited = waitpid(pid, status, bounded ? WNOHANG : 0);

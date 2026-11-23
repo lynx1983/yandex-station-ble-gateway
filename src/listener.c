@@ -10,13 +10,31 @@
 #include <unistd.h>
 
 #include "activity.h"
+#include "config.h"
 #include "job.h"
 #include "listener.h"
 #include "quasar.h"
 #include "util.h"
 #include "voice.h"
 
+#ifndef SESSION_TIMEOUT_MS
+#define SESSION_TIMEOUT_MS DEFAULT_SESSION_TIMEOUT_MS
+#endif
+#ifndef SPEECH_TIMEOUT_MS
+#define SPEECH_TIMEOUT_MS DEFAULT_SPEECH_TIMEOUT_MS
+#endif
+
 volatile sig_atomic_t stopping;
+
+static long long session_timeout_ms(void)
+{
+    return config_ms("KETTLE_SESSION_TIMEOUT_MS", SESSION_TIMEOUT_MS);
+}
+
+static long long speech_timeout_ms(void)
+{
+    return config_ms("KETTLE_SPEECH_TIMEOUT_MS", SPEECH_TIMEOUT_MS);
+}
 
 void stop_listener(int signal_number)
 {
@@ -31,7 +49,7 @@ int listen_for_commands(int fd, const char *worker, const struct aliases *aliase
     size_t length = 0;
     struct voice voice = {0};
     struct job job = {.fd = -1};
-    long long deadline = now() + 90000;
+    long long deadline = now() + session_timeout_ms();
     int result = 1;
     long long admitted_at = 0;
     long long speech_deadline = 0;
@@ -56,7 +74,7 @@ int listen_for_commands(int fd, const char *worker, const struct aliases *aliase
             resume_after_pair = 0;
             voice.armed = 0;
             voice.previous_started = 0;
-            deadline = now() + 90000;
+            deadline = now() + session_timeout_ms();
         }
         if (job.pid && job.deadline && now() >= job.deadline) {
             fprintf(stderr, "Kettle job exceeded its time limit: %s\n",
@@ -110,7 +128,7 @@ int listen_for_commands(int fd, const char *worker, const struct aliases *aliase
                         pairing = 0;
                         voice.armed = 0;
                         voice.previous_started = 0;
-                        deadline = now() + 90000;
+                        deadline = now() + session_timeout_ms();
                         if (resume_after_pair)
                             fprintf(stderr, "Pairing complete; listening for a new command\n");
                         resume_after_pair = 0;
@@ -144,7 +162,7 @@ int listen_for_commands(int fd, const char *worker, const struct aliases *aliase
                         result = 0;
                         speaking = 0;
                         speech_mode = UINT32_MAX;
-                        speech_deadline = now() + 8000;
+                        speech_deadline = now() + speech_timeout_ms();
                     }
                 }
                 consumed += 4 + size;
@@ -196,7 +214,7 @@ int listen_for_commands(int fd, const char *worker, const struct aliases *aliase
                 }
                 speaking = 0;
                 speech_mode = UINT32_MAX;
-                speech_deadline = now() + 8000;
+                speech_deadline = now() + speech_timeout_ms();
             }
         }
     }

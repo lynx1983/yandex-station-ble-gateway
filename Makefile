@@ -5,8 +5,8 @@ PYTHON ?= python3
 HOST_CC ?= cc
 
 BUILD := build/phase1
-SOURCES := src/alice-kettle.c src/activity.c src/job.c src/listener.c \
-	src/phrases.c src/quasar.c src/voice.c
+SOURCES := src/alice-kettle.c src/activity.c src/config.c src/job.c \
+	src/listener.c src/phrases.c src/quasar.c src/voice.c
 HEADERS := $(wildcard src/*.h)
 PROBE := scripts/bsa-management-probe.S
 GATT_SOURCE := scripts/bsa-gatt-search.inc scripts/kettle-cache-attrs.inc
@@ -15,7 +15,7 @@ GATT_FLAGS := --defsym=GATT_REGISTER=1 --defsym=GATT_ENABLE=1 \
 	--defsym=GATT_CACHE_IMAGE=1 --defsym=GATT_CACHE_ONLY=1 \
 	--defsym=GATT_CACHE_THEN_SEARCH=1 --defsym=GATT_TEMPERATURE=1
 
-.PHONY: all clean check check-version check-python check-shell check-c test package
+.PHONY: all clean check check-version check-python check-shell check-c test test-modules test-client package
 all: $(BUILD)/alice-kettle $(BUILD)/discovery \
 	$(BUILD)/gatt-temperature $(BUILD)/gatt-stop $(BUILD)/gatt-boil
 
@@ -64,7 +64,18 @@ check-shell:
 check-c:
 	$(HOST_CC) -std=c11 -O2 -Wall -Wextra -Werror -Isrc -fsyntax-only $(SOURCES)
 
-test:
+test: test-modules test-client
+
+test-modules: $(BUILD)/test-modules
+	$(BUILD)/test-modules
+
+$(BUILD)/test-modules: tests/test_modules.c src/config.c src/job.c src/phrases.c \
+		src/quasar.c src/voice.c $(HEADERS) | $(BUILD)
+	$(HOST_CC) -std=c11 -O2 -Wall -Wextra -Werror -Isrc -o $@ \
+		tests/test_modules.c src/config.c src/job.c src/phrases.c \
+		src/quasar.c src/voice.c
+
+test-client:
 	HOST_CC="$(HOST_CC)" $(PYTHON) tests/test_voice_client.py
 
 clean:

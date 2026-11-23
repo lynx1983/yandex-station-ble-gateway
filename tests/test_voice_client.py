@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Host regression tests for the Quasar voice client.
 
-The tests compile src/alice-kettle.c for the host, connect it to a fake
-Quasar listener on a private loopback port, and exercise the recognition and
-reply paths without ARM tools or the BSA library.
+The tests compile the C modules for the host, connect them to a fake Quasar
+listener on a private loopback port, and exercise the recognition and reply
+paths without ARM tools or the BSA library. Unit tests for individual modules
+live in tests/test_modules.c.
 """
 
 import os
@@ -352,8 +353,11 @@ class VoiceClientTests(unittest.TestCase):
             self.assertEqual(returncode, 0)
 
     def test_job_timeout_stops_worker_group(self):
-        defines = {"JOB_TIMEOUT_MS": 300, "JOB_STOP_GRACE_MS": 100}
-        with QuasarHarness(defines=defines) as harness:
+        env_extra = {
+            "KETTLE_JOB_TIMEOUT_MS": "300",
+            "KETTLE_STOP_GRACE_MS": "100",
+        }
+        with QuasarHarness(env_extra=env_extra) as harness:
             pid_file = harness.work / "worker.pid"
             worker = harness.write_worker(
                 "printf '%s\\n' \"$$\" > \"$KETTLE_TEST_PID\"\n"

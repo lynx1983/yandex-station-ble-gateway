@@ -52,7 +52,9 @@ struct request decode(struct bytes frame)
 {
     struct request request = {0};
     struct bytes state = find(frame, 3, 2).body;
-    if (!state.data && find(frame, 253, 0).value == 3) {
+    /* Observed wrappers use either the Alice marker or the reply marker. */
+    uint64_t marker = find(frame, 253, 0).value;
+    if (!state.data && (marker == 3 || marker == 210)) {
         request.wrapped = 1;
         state = find(frame, 252, 2).body;
     }
