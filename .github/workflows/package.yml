@@ -1,6 +1,7 @@
 name: Build YAM package
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
@@ -10,15 +11,8 @@ permissions:
 
 jobs:
   package:
-    runs-on: [self-hosted, linux, yam-build]
-    timeout-minutes: 15
-    env:
-      ARM_CC: ${{ vars.YAM_ARM_CC || 'arm-linux-musleabihf-gcc' }}
-      ARM_CC_FLAGS: ${{ vars.YAM_ARM_CC_FLAGS }}
-      BSA_LIB: ${{ vars.YAM_BSA_LIB }}
-      MUSL_COPYRIGHT: ${{ vars.YAM_MUSL_COPYRIGHT }}
-      YAM_PROFILES: ${{ vars.YAM_PROFILES }}
-      YAM_PUBLISH: ${{ vars.YAM_PUBLISH || 'yam-publish' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,16 +21,54 @@ jobs:
         run: |
           make check
           version=$(cat VERSION)
-          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
             printf 'Tag %s must match VERSION (v%s)\n' "$GITHUB_REF_NAME" "$version" >&2
             exit 1
           fi
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf binutils-arm-linux-gnueabihf
+      - name: Prepare musl and YAM
+        run: |
+          tools="$RUNNER_TEMP/yam-build"
+          mkdir -p "$tools/profiles"
+          cd "$tools"
+          curl -fsSL --retry 3 -o musl.tar.gz https://musl.libc.org/releases/musl-1.2.5.tar.gz
+          echo 'a9a118bbe84d8764da0ea0d28b3ab3fae8477fc7e4085d90102b8596fc7c75e4  musl.tar.gz' | sha256sum -c -
+          tar -xzf musl.tar.gz
+          (
+            cd musl-1.2.5
+            CC=arm-linux-gnueabihf-gcc CFLAGS="-march=armv7-a -mfpu=vfpv3-d16" \
+              ./configure --target=arm-linux-musleabihf --prefix="$tools/musl" \
+                --disable-shared --enable-wrapper=gcc
+            make -j"$(nproc)" CROSS_COMPILE=arm-linux-gnueabihf-
+            make install CROSS_COMPILE=arm-linux-gnueabihf-
+          )
+          curl -fsSL --retry 3 -o yam-publish https://github.com/nyakokitsu/yam/releases/download/yam-v0.2.5/yam-publish-x86_64-unknown-linux-musl
+          echo 'bca3ae9cd1624dd83bc9a2aa2c20d63ae910cc5cbfc79c8d6cbc54e607fb903b  yam-publish' | sha256sum -c -
+          chmod +x yam-publish
+          curl -fsSL --retry 3 -o profiles/yandexmini.yaml https://raw.githubusercontent.com/nyakokitsu/yam/5c06c9f95de97276cc035e9673fe52e52b1c7052/platforms/yandexmini.yaml
+          echo '6cacaa9144f8aa1f8b6619704951182f0cecf6349fb9987a97536dc1c9453e90  profiles/yandexmini.yaml' | sha256sum -c -
+          {
+            printf 'ARM_CC=%s/musl/bin/musl-gcc\n' "$tools"
+            printf 'REALGCC=arm-linux-gnueabihf-gcc\n'
+            printf 'MUSL_COPYRIGHT=%s/musl-1.2.5/COPYRIGHT\n' "$tools"
+            printf 'YAM_PUBLISH=%s/yam-publish\n' "$tools"
+            printf 'YAM_PROFILES=%s/profiles\n' "$tools"
+          } >> "$GITHUB_ENV"
+      - name: Restore firmware linker library
+        env:
+          BSA_PART_1: ${{ secrets.YAM_BSA_PART_1 }}
+          BSA_PART_2: ${{ secrets.YAM_BSA_PART_2 }}
+        run: |
+          : "${BSA_PART_1:?Set repository secret YAM_BSA_PART_1}"
+          : "${BSA_PART_2:?Set repository secret YAM_BSA_PART_2}"
+          mkdir -p build/phase1
+          printf '%s%s' "$BSA_PART_1" "$BSA_PART_2" | base64 -d | gzip -dc > build/phase1/libbsa.so
       - name: Build and pack
         id: build
         run: |
-          : "${BSA_LIB:?Set YAM_BSA_LIB to the library path on the runner}"
-          mkdir -p build/phase1
-          install -m 644 "$BSA_LIB" build/phase1/libbsa.so
           make all
           make package
           version=$(cat VERSION)

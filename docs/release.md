@@ -94,22 +94,25 @@ See the [YAM publishing guide](https://github.com/nyakokitsu/yam/blob/main/docs/
 pushed. The tagged commit must contain the workflow, and its `VERSION`
 must match the tag without the leading `v`. The job uploads the
 `.yampkg` and its SHA-256 checksum to the workflow run.
+For a trial build, select **Run workflow** on the Actions page and choose
+the default branch. The manual run uses the version in `VERSION`.
 
-Register a dedicated Linux self-hosted runner with the `yam-build` label
-and prepare GNU Make, Python 3, a native C compiler, ARM hard-float
-binutils, an ARM musl cross-compiler and the official YAM packer. Set these
-repository Actions variables to paths readable by the runner account:
+The job uses a GitHub-hosted `ubuntu-latest` runner. It installs the ARM
+toolchain and downloads pinned musl and YAM inputs. Provide the compatible
+Station copy of `libbsa.so` as two repository Actions secrets. The
+compressed, Base64-encoded library exceeds the 48 KB limit for one
+secret. With an authenticated GitHub CLI, run from the repository root:
 
-| Variable | Value |
-| --- | --- |
-| `YAM_BSA_LIB` | Absolute path to the compatible Station copy of `libbsa.so`. |
-| `YAM_MUSL_COPYRIGHT` | Absolute path to the matching musl `COPYRIGHT`. |
-| `YAM_PROFILES` | Absolute path to the YAM profiles directory. |
-| `YAM_ARM_CC` | Compiler command, defaults to `arm-linux-musleabihf-gcc`. |
-| `YAM_ARM_CC_FLAGS` | Extra compiler flags, if needed by the toolchain. |
-| `YAM_PUBLISH` | Packer executable, defaults to `yam-publish`. |
+```bash
+set -o pipefail
+bsa_payload=$(gzip -n -9c build/phase1/libbsa.so | base64 -w0) &&
+  test "${#bsa_payload}" -gt 40000 &&
+  test "${#bsa_payload}" -le 88000 &&
+  printf '%s' "${bsa_payload:0:40000}" | gh secret set YAM_BSA_PART_1 &&
+  printf '%s' "${bsa_payload:40000}" | gh secret set YAM_BSA_PART_2
+unset bsa_payload
+```
 
-Keep `libbsa.so` outside the checkout. Run the packaging job only for
-trusted tags on the dedicated runner. The job needs read-only GitHub
-permissions. Publishing the resulting archive to YAM Registry or
-attaching it to a GitHub Release is a separate operation.
+The workflow restores the library for linking and uploads the package
+and checksum. Publishing to YAM Registry or attaching the archive to
+a GitHub Release is a separate operation.
