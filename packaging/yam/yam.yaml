@@ -18,8 +18,11 @@ files:
   share/lynx.redmond-kettle/LICENSE: LICENSE
   share/lynx.redmond-kettle/musl-COPYRIGHT: musl-COPYRIGHT
 services:
+  # YAM only records this declaration; the init.d hook and postinstall start
+  # `daemon`, which owns daemon.lock and the pidfile. `run` is the foreground
+  # listener for manual sessions and for the daemon supervisor.
   redmond-kettle:
-    exec: ["bin/redmond-kettle", "run"]
+    exec: ["bin/redmond-kettle", "daemon"]
     restart: on-failure
     after: [network]
 postinstall: ["bin/redmond-kettle-postinstall"]

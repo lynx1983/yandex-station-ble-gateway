@@ -119,7 +119,9 @@ def emit(path):
         '.endif',
         "",
     ))
-    Path(path).write_text(text)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
     print("wrote", path)
 
 

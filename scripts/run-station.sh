@@ -14,6 +14,7 @@ if (( $# > 2 )) || [[ ${1:-} == -* ]]; then
 fi
 key=$(realpath -m -- "${1:-$build/wsl-kettle.key}")
 target=${2:-station}
+pending=
 phrases=${KETTLE_PHRASES:-$root/config/kettle-phrases.conf}
 : "${KETTLE_ADDRESS:?Set KETTLE_ADDRESS to the target kettle BLE address}"
 
@@ -119,11 +120,11 @@ else
     exit "$status"
 fi
 ' || remote_status=$?
-if [[ $mode == pair && $remote_status == 0 ]] || [[ -v pending && $remote_status == 21 ]]; then
+if [[ $mode == pair && $remote_status == 0 ]] || [[ -n $pending && $remote_status == 21 ]]; then
     ln -- "$pending" "$key"
     rm -- "$pending"
     printf 'Ключ подтверждён и сохранён в %s\n' "$key"
 fi
-if (( remote_status != 21 )) || [[ ! -v pending ]]; then
+if (( remote_status != 21 )) || [[ -z $pending ]]; then
     exit "$remote_status"
 fi
