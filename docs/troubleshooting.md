@@ -66,8 +66,9 @@ instead of touching another Bluetooth session.
 
 ## Build or package failures
 
-- `libbsa.so: No such file or directory` — copy the library from your own
-  Station into `build/phase1/` before `make`. The repository does not ship it.
+- `Copy libbsa.so from your Station into build/phase1/libbsa.so before building
+  the probes` — copy the library from your own Station into `build/phase1/`
+  before `make`. The repository does not ship it.
 - `Build alice-kettle with a static ARM musl compiler before packaging` —
   rebuild with
   `make -B build/phase1/alice-kettle ARM_CC=arm-linux-musleabihf-gcc`.

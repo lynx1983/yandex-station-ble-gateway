@@ -1,7 +1,7 @@
 #!/bin/sh
 # Fail when a checked-in package version drifts from the VERSION file.
 set -eu
-root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+root=${CHECK_VERSION_ROOT:-$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)}
 version=$(cat "$root/VERSION")
 fail=0
 

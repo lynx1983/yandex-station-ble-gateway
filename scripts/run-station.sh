@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 # Run one temporary Station voice session or enroll a Ready for Sky key.
 set -euo pipefail
+
+require_commands() {
+    local cmd
+    for cmd in "$@"; do
+        command -v "$cmd" >/dev/null 2>&1 || {
+            printf 'run-station: missing required command: %s\n' "$cmd" >&2
+            exit 2
+        }
+    done
+}
+require_commands wc mktemp install head chmod mkdir rm rmdir tar ssh
+
 root=$(cd -- "$(dirname -- "$0")/.." && pwd)
 build="$root/build/phase1"
 mode=voice
@@ -12,11 +24,26 @@ if (( $# > 2 )) || [[ ${1:-} == -* ]]; then
     printf 'Usage: %s [--pair] [KEY_FILE [SSH_TARGET]]\n' "$0" >&2
     exit 2
 fi
-key=$(realpath -m -- "${1:-$build/wsl-kettle.key}")
+key=${1:-$build/wsl-kettle.key}
+# Keep the path absolute without realpath -m, which BSD realpath lacks.
+[[ $key == /* ]] || key=$PWD/$key
 target=${2:-station}
 pending=
 phrases=${KETTLE_PHRASES:-$root/config/kettle-phrases.conf}
 : "${KETTLE_ADDRESS:?Set KETTLE_ADDRESS to the target kettle BLE address}"
+
+for name in alice-kettle discovery gatt-temperature gatt-stop gatt-boil; do
+    if [[ ! -f $build/$name || ! -x $build/$name ]]; then
+        printf 'Missing build artifact: %s (run make first)\n' "$build/$name" >&2
+        exit 2
+    fi
+done
+for input in "$root/scripts/station-temperature-worker.sh" "$phrases"; do
+    if [[ ! -f $input || ! -r $input ]]; then
+        printf 'Missing input file: %s\n' "$input" >&2
+        exit 2
+    fi
+done
 
 valid_key() {
     [[ -f $1 ]] && [[ $(wc -c < "$1") -eq 8 ]]

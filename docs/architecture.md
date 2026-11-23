@@ -60,11 +60,16 @@ one configured value drives both sides of the pairing flow.
 ## Build and verification
 
 ```sh
-make check   # version, Python, shell, and C syntax; no ARM toolchain needed
+make check   # version, Python, assembly, shell and C syntax; no ARM toolchain needed
 make test    # module unit tests plus fake-Quasar integration tests
 make         # ARM32 BSA probes and the voice client
 make package # stage and pack a YAM archive
+make help    # list available targets
 ```
+
+`make check` also runs the negative version tests and validates that the ARM
+assembly includes and conditionals are balanced, so those failures are caught
+without binutils.
 
 `src/*.c` is compiled together for ARM and for the host; `VERSION` is the only
 package version source. The voice client needs a static ARM hard-float musl

@@ -3,6 +3,20 @@
 LC_ALL=C
 export LC_ALL
 
+# This script is streamed to a minimal firmware, so report missing tools
+# instead of aborting and losing the remaining diagnostics.
+missing=
+for cmd in uname id cat readlink tr awk sort find grep; do
+    command -v "$cmd" >/dev/null 2>&1 || missing="$missing $cmd"
+done
+if [ -n "$missing" ]; then
+    printf 'Diagnostics: unavailable commands:%s\n' "$missing" >&2
+fi
+if [ ! -d /proc ]; then
+    printf 'Diagnostics: /proc is unavailable\n' >&2
+    exit 1
+fi
+
 printf '\n## Kernel and identity\n'
 uname -a
 id

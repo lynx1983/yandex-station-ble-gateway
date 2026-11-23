@@ -15,7 +15,8 @@ GATT_FLAGS := --defsym=GATT_REGISTER=1 --defsym=GATT_ENABLE=1 \
 	--defsym=GATT_CACHE_IMAGE=1 --defsym=GATT_CACHE_ONLY=1 \
 	--defsym=GATT_CACHE_THEN_SEARCH=1 --defsym=GATT_TEMPERATURE=1
 
-.PHONY: all clean check check-version check-python check-shell check-c test test-modules test-client package
+.PHONY: all clean check check-version check-python check-assembly check-shell check-c \
+	test test-modules test-client package help
 all: $(BUILD)/alice-kettle $(BUILD)/discovery \
 	$(BUILD)/gatt-temperature $(BUILD)/gatt-stop $(BUILD)/gatt-boil
 
@@ -37,20 +38,28 @@ $(BUILD)/gatt-boil.o: OP_FLAGS := --defsym=GATT_BOIL=1
 $(BUILD)/gatt-%.o: $(PROBE) $(GATT_SOURCE) $(BUILD)/kettle-status-blobs.inc
 	$(CROSS_COMPILE)as $(GATT_FLAGS) $(OP_FLAGS) -o $@ $<
 
+$(BUILD)/libbsa.so:
+	@printf 'Copy libbsa.so from your Station into $@ before building the probes\n' >&2
+	@exit 1
+
 $(BUILD)/discovery $(BUILD)/gatt-temperature $(BUILD)/gatt-stop $(BUILD)/gatt-boil: %: %.o $(BUILD)/libbsa.so
 	$(CROSS_COMPILE)ld --dynamic-linker /lib/ld-linux-armhf.so.3 \
 		--allow-shlib-undefined -L$(BUILD) -o $@ $< -lbsa
 
 # Host-side checks. These need no ARM toolchain and no BSA library.
-check: check-version check-python check-shell check-c
+check: check-version check-python check-assembly check-shell check-c
 
 check-version:
 	scripts/check-version.sh
+	sh tests/test_check_version.sh
 
 check-python:
 	$(PYTHON) scripts/kettle-cache-load.py
 	$(PYTHON) scripts/kettle-status-blobs.py
 	$(PYTHON) -m py_compile scripts/*.py
+
+check-assembly:
+	$(PYTHON) tests/check_asm_includes.py
 
 check-shell:
 	sh -n scripts/bsa-diagnostics.sh
@@ -59,6 +68,7 @@ check-shell:
 	sh -n packaging/yam/boot.sh
 	sh -n packaging/yam/postinstall.sh
 	sh -n packaging/yam/service.sh
+	sh -n tests/test_check_version.sh
 	bash -n scripts/run-station.sh
 
 check-c:
@@ -83,3 +93,12 @@ clean:
 
 package:
 	scripts/pack-yam.sh
+
+help:
+	@printf 'Targets:\n'
+	@printf '  all          Build ARM probes and the voice client\n'
+	@printf '  check        Version, Python, assembly, shell and C syntax checks\n'
+	@printf '  test         Module unit tests plus fake-Quasar integration tests\n'
+	@printf '  package      Stage and pack a YAM archive (needs YAM_PROFILES and MUSL_COPYRIGHT)\n'
+	@printf '  clean        Remove build artifacts\n'
+	@printf '  help         Show this message\n'

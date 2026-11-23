@@ -1,7 +1,35 @@
 #!/bin/sh
 set -eu
 umask 077
+
+require_commands() {
+    for command in "$@"; do
+        command -v "$command" >/dev/null 2>&1 || {
+            printf 'redmond-kettle postinstall: missing required command: %s\n' \
+                "$command" >&2
+            exit 1
+        }
+    done
+}
+require_commands mkdir cat grep awk mktemp mv cmp chmod
+
 : "${YAM_PKG:?}"
+if [ ! -d "$YAM_PKG" ]; then
+    printf 'YAM_PKG is not a directory: %s\n' "$YAM_PKG" >&2
+    exit 1
+fi
+for payload in bin/redmond-kettle share/lynx.redmond-kettle/phrases.conf \
+        share/lynx.redmond-kettle/boot.sh; do
+    if [ ! -r "$YAM_PKG/$payload" ] || [ -L "$YAM_PKG/$payload" ]; then
+        printf 'Missing or unsafe package payload: %s\n' "$YAM_PKG/$payload" >&2
+        exit 1
+    fi
+done
+[ -x "$YAM_PKG/bin/redmond-kettle" ] || {
+    printf 'Package service is not executable: %s/bin/redmond-kettle\n' "$YAM_PKG" >&2
+    exit 1
+}
+
 config_dir=${YAM_ETC:-/data/yam/etc}/lynx.redmond-kettle
 mkdir -p "$config_dir"
 phrases=$config_dir/phrases.conf
