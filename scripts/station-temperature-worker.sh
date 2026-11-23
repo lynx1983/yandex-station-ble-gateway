@@ -37,6 +37,19 @@ listener() {
     awk '$4 == "00010000" && $8 ~ /^\/tmp\/(\.\/)?bt-daemon-socket$/ {print $7}' /proc/net/unix
 }
 
+pair_log() {
+    _pair_event=$1
+    _pair_detail=${2:-}
+    read -r _pair_uptime _ < /proc/uptime
+    if [ -n "$_pair_detail" ]; then
+        printf 'pair_worker %s uptime_s=%s %s\n' \
+            "$_pair_event" "${_pair_uptime%%.*}" "$_pair_detail" >&2
+    else
+        printf 'pair_worker %s uptime_s=%s\n' \
+            "$_pair_event" "${_pair_uptime%%.*}" >&2
+    fi
+}
+
 pair_key() {
     candidate=${KETTLE_PAIR_KEY:-}
     test -n "$candidate"
@@ -59,27 +72,51 @@ pair_key() {
     timeout_ms=$(pair_timeout_ms) || exit 2
     pair_seconds=$(( (timeout_ms + 999) / 1000 ))
     read -r uptime _ < /proc/uptime
-    deadline=$((${uptime%%.*} + pair_seconds))
+    start_s=${uptime%%.*}
+    deadline=$((start_s + pair_seconds))
+    attempts=0
+    pair_log start "timeout_ms=$timeout_ms server_pid=$server socket_inode=$socket_inode"
     while :; do
         read -r uptime _ < /proc/uptime
-        [ "${uptime%%.*}" -lt "$deadline" ] || return 1
-        [ "$(pidof bsa_server || true)" = "$server" ] || return 1
-        [ "$(listener)" = "$socket_inode" ] || return 1
+        now_s=${uptime%%.*}
+        elapsed=$((now_s - start_s))
+        if [ "$now_s" -ge "$deadline" ]; then
+            pair_log timeout "attempts=$attempts elapsed_s=$elapsed deadline_s=$deadline"
+            return 1
+        fi
+        current_server=$(pidof bsa_server || true)
+        if [ "$current_server" != "$server" ]; then
+            pair_log server_changed "from=$server to=$current_server attempts=$attempts"
+            return 1
+        fi
+        current_socket=$(listener)
+        if [ "$current_socket" != "$socket_inode" ]; then
+            pair_log socket_changed "from=$socket_inode to=$current_socket attempts=$attempts"
+            return 1
+        fi
+        attempts=$((attempts + 1))
         if "$0" status >/dev/null; then
+            pair_log status_ok "attempt=$attempts elapsed_s=$elapsed"
             if [ -n "${KETTLE_SAVED_KEY:-}" ]; then
                 saved_tmp=$(mktemp "${KETTLE_SAVED_KEY}.XXXXXX")
                 if ! cp "$candidate" "$saved_tmp" || ! ln "$saved_tmp" "$KETTLE_SAVED_KEY"; then
                     rm -f "$saved_tmp"
+                    pair_log key_save_failed "path=$KETTLE_SAVED_KEY"
                     return 1
                 fi
                 rm -f "$saved_tmp"
+                pair_log key_saved "path=$KETTLE_SAVED_KEY"
             else
                 : > "$work/pair-verified"
             fi
+            pair_log verified "attempts=$attempts elapsed_s=$elapsed"
             # The launcher owns cleanup after this point so the next voice
             # command can use the verified key in the same session.
             trap - EXIT
             return 0
+        fi
+        if [ "$attempts" -le 2 ] || [ $((attempts % 5)) -eq 0 ]; then
+            pair_log status_failed "attempt=$attempts elapsed_s=$elapsed"
         fi
         sleep 1
     done

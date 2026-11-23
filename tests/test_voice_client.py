@@ -376,6 +376,8 @@ class VoiceClientTests(unittest.TestCase):
             _, stderr = harness.finish()
             self.assertIn("time limit", stderr)
             self.assertIn("timed out", stderr)
+            self.assertIn("Kettle job started: operation=temperature", stderr)
+            self.assertIn("with SIGTERM", stderr)
             with self.assertRaises(ProcessLookupError):
                 os.kill(worker_pid, 0)
 
@@ -403,6 +405,10 @@ class VoiceClientTests(unittest.TestCase):
             self.assertTrue(harness.wait_for(spoken("Чайник привязан. Повторите нужную команду.")))
             operations = log.read_text(encoding="utf-8").split()
             self.assertEqual(operations, ["temperature", "pair"])
+            _, stderr = harness.finish()
+            self.assertIn("Starting pairing job after key-missing reply", stderr)
+            self.assertIn("Kettle job started: operation=pair", stderr)
+            self.assertIn("Pairing verified; waiting for a fresh command", stderr)
 
 
 if __name__ == "__main__":

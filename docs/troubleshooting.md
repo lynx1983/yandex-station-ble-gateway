@@ -14,8 +14,9 @@ grep redmond-kettle /var/log/messages
 
 Logs use the tag `redmond-kettle`; on this firmware `/var/log` points to
 `/tmp`, so entries disappear after a reboot. Useful lines are
-`Kettle request accepted`, `Cancellation sent`, `Temperature read`,
-`Vocalize directive sent`, and `Quasar speech state`.
+`Kettle request accepted`, `Kettle job started` / `Kettle job finished`,
+`Cancellation sent`, `Temperature read`, `Vocalize directive sent`, and
+`Quasar speech state`.
 
 - No `Kettle request accepted`: the phrase did not match. Check
   `/data/yam/etc/lynx.redmond-kettle/phrases.conf` and restart the service.
@@ -43,6 +44,38 @@ waiting for the physical window.
   same value is exported to the worker, so both sides stay in sync.
 - `Не удалось привязать чайник` — the key was not verified. Failed attempts
   leave a `.pending` candidate that is reused on the next attempt.
+
+### Pairing log trace
+
+A voice pairing produces this sequence in syslog:
+
+```
+Listener timeouts: session_ms=… speech_ms=…
+Kettle request accepted: temperature
+Starting pairing job after key-missing reply
+Kettle job started: operation=pair pid=… timeout_ms=… wrapped=… target=…
+pair_worker start timeout_ms=… server_pid=… socket_inode=…
+pair_worker status_failed attempt=1 elapsed_s=0
+pair_worker status_ok attempt=… elapsed_s=…
+pair_worker verified attempts=… elapsed_s=…
+Kettle job finished: operation=pair pid=… exit=0 elapsed_ms=… stale=0 timed_out=0
+Voice pairing verified
+Pairing verified; waiting for a fresh command
+```
+
+`pair_worker status_failed` lines are throttled after the first two attempts,
+so a long wait stays readable. The meaning of the exit events:
+
+- `pair_worker timeout` — the button window expired. Compare `timeout_ms` with
+  `KETTLE_PAIR_TIMEOUT_MS`; both sides use the same resolved value.
+- `pair_worker server_changed` / `socket_changed` — BSA or its socket was
+  replaced during the wait. The worker aborts rather than touching another
+  Bluetooth session; check what restarted `bsa_server`.
+- `pair_worker key_save_failed` — status succeeded but the verified key could
+  not be written. Check permissions on `/data/yam/var/lynx.redmond-kettle`.
+- `Kettle job finished` with `timed_out=1` or `exit=-1` — the client killed the
+  worker; look for the preceding `Stopping kettle job … with SIGTERM/SIGKILL`
+  line.
 
 The verified key is `/data/yam/var/lynx.redmond-kettle/kettle.key` with mode
 `0600`. Move this file and `kettle.key.pending` aside before pairing a

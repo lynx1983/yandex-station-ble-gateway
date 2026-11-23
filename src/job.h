@@ -10,7 +10,7 @@ struct job {
     int fd, wrapped, stale, target, timed_out;
     enum operation operation;
     size_t length;
-    long long deadline;
+    long long deadline, started_at;
     char output[32];
 };
 

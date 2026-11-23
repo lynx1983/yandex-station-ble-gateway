@@ -61,6 +61,8 @@ int listen_for_commands(int fd, const char *worker, const struct aliases *aliase
     const char *activity_pattern = getenv("KETTLE_ACTIVITY_PATTERN");
     pid_t activity_led = 0;
     int activity_pending = 0;
+    fprintf(stderr, "Listener timeouts: session_ms=%lld speech_ms=%lld\n",
+            session_timeout_ms(), speech_timeout_ms());
     while (!stopping) {
         if (speech_deadline && now() >= speech_deadline) {
             if (!resume_after_pair && !continuous)
@@ -77,8 +79,9 @@ int listen_for_commands(int fd, const char *worker, const struct aliases *aliase
             deadline = now() + session_timeout_ms();
         }
         if (job.pid && job.deadline && now() >= job.deadline) {
-            fprintf(stderr, "Kettle job exceeded its time limit: %s\n",
-                    operation_names[job.operation]);
+            fprintf(stderr, "Kettle job exceeded its time limit: %s pid=%ld elapsed_ms=%lld\n",
+                    operation_names[job.operation], (long)job.pid,
+                    now() - job.started_at);
             activity_pending = 0;
             stop_activity_led(&activity_led);
             job.deadline = 0;
@@ -202,6 +205,7 @@ int listen_for_commands(int fd, const char *worker, const struct aliases *aliase
             }
             fprintf(stderr, "Vocalize directive sent; elapsed_ms=%lld\n", now() - admitted_at);
             if (reply == 1) {
+                fprintf(stderr, "Starting pairing job after key-missing reply\n");
                 if (start_job(&job, worker, fd, job.wrapped, PAIR_KEY, 0) < 0) {
                     result = 1;
                     break;
@@ -209,6 +213,7 @@ int listen_for_commands(int fd, const char *worker, const struct aliases *aliase
                 pairing = 1;
             } else {
                 if (reply == 2) {
+                    fprintf(stderr, "Pairing verified; waiting for a fresh command\n");
                     unsetenv("KETTLE_KEY_AVAILABLE");
                     resume_after_pair = 1;
                 }

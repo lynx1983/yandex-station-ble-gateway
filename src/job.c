@@ -72,12 +72,17 @@ int start_job(struct job *job, const char *worker, int fd, int wrapped,
     }
     /* The child also does this; either side winning the race is enough. */
     (void)setpgid(pid, pid);
+    long long started = now();
     /* The pairing worker must be able to finish before the client gives up. */
     if (operation == PAIR_KEY)
         timeout += stop_grace_ms();
     *job = (struct job){.pid = pid, .fd = pipes[0], .wrapped = wrapped,
                         .operation = operation, .target = target,
-                        .deadline = now() + timeout};
+                        .deadline = started + timeout, .started_at = started};
+    fprintf(stderr,
+            "Kettle job started: operation=%s pid=%ld timeout_ms=%lld "
+            "wrapped=%d target=%d\n",
+            operation_names[operation], (long)pid, timeout, wrapped, target);
     return 0;
 }
 
@@ -92,6 +97,9 @@ static void signal_job(pid_t pid, int signal_number)
 
 void terminate_job(pid_t pid)
 {
+    if (pid <= 0)
+        return;
+    fprintf(stderr, "Stopping kettle job pid=%ld with SIGTERM\n", (long)pid);
     signal_job(pid, SIGTERM);
 }
 
@@ -118,6 +126,7 @@ void stop_job(pid_t pid)
     terminate_job(pid);
     int status;
     if (wait_job(pid, &status, 1) == 0) {
+        fprintf(stderr, "Stopping kettle job pid=%ld with SIGKILL\n", (long)pid);
         signal_job(pid, SIGKILL);
         while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
     }
@@ -130,11 +139,18 @@ int finish_job(struct job *job, int fd)
     job->fd = -1;
     pid_t waited = wait_job(job->pid, &status, 1);
     if (waited == 0) {
+        fprintf(stderr, "Killed kettle job pid=%ld after deadline\n", (long)job->pid);
         signal_job(job->pid, SIGKILL);
         do {
             waited = waitpid(job->pid, &status, 0);
         } while (waited < 0 && errno == EINTR);
     }
+    int exit_code = waited > 0 && WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    fprintf(stderr,
+            "Kettle job finished: operation=%s pid=%ld exit=%d elapsed_ms=%lld "
+            "stale=%d timed_out=%d\n",
+            operation_names[job->operation], (long)job->pid, exit_code,
+            now() - job->started_at, job->stale, job->timed_out);
     job->pid = 0;
     job->deadline = 0;
     int stale = job->stale;
