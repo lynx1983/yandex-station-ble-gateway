@@ -1,5 +1,5 @@
 name: lynx/redmond-kettle
-version: 1.3.0
+version: 1.3.1
 license: MIT
 description: Local Alice voice control for a Redmond SkyKettle RK-G214S on Yandex Station Mini
 homepage: https://github.com/lynx1983/yandex-station-ble-gateway
