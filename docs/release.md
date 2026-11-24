@@ -93,7 +93,7 @@ See the [YAM publishing guide](https://github.com/nyakokitsu/yam/blob/main/docs/
 `.github/workflows/package.yml` builds the package when a `v*` tag is
 pushed. The tagged commit must contain the workflow, and its `VERSION`
 must match the tag without the leading `v`. The job uploads the
-`.yampkg` and its SHA-256 checksum to the workflow run.
+`.yampkg` and its `.sha256` file as two separate artifacts without a ZIP wrapper.
 For a trial build, select **Run workflow** on the Actions page and choose
 the default branch. The manual run uses the version in `VERSION`.
 
