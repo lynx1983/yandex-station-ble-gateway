@@ -93,7 +93,8 @@ See the [YAM publishing guide](https://github.com/nyakokitsu/yam/blob/main/docs/
 `.github/workflows/package.yml` builds the package when a `v*` tag is
 pushed. The tagged commit must contain the workflow, and its `VERSION`
 must match the tag without the leading `v`. The job uploads the
-`.yampkg` and its `.sha256` file as two separate artifacts without a ZIP wrapper.
+`.yampkg` as a single artifact without a ZIP wrapper. GitHub Actions
+records its SHA-256 digest in the artifact metadata.
 For a trial build, select **Run workflow** on the Actions page and choose
 the default branch. The manual run uses the version in `VERSION`.
 
@@ -113,6 +114,6 @@ bsa_payload=$(gzip -n -9c build/phase1/libbsa.so | base64 -w0) &&
 unset bsa_payload
 ```
 
-The workflow restores the library for linking and uploads the package
-and checksum. Publishing to YAM Registry or attaching the archive to
+The workflow restores the library for linking and uploads the package.
+Publishing to YAM Registry or attaching the package to
 a GitHub Release is a separate operation.

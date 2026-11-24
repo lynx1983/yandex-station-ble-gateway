@@ -72,19 +72,11 @@ jobs:
           make all
           make package
           version=$(cat VERSION)
-          cd build/dist
           artifact="redmond-kettle-$version-yandexmini.yampkg"
-          sha256sum "$artifact" > "$artifact.sha256"
           printf "artifact=%s\n" "$artifact" >> "$GITHUB_OUTPUT"
       - name: Upload package
         uses: actions/upload-artifact@v7
         with:
           path: build/dist/${{ steps.build.outputs.artifact }}
-          archive: false
-          if-no-files-found: error
-      - name: Upload checksum
-        uses: actions/upload-artifact@v7
-        with:
-          path: build/dist/${{ steps.build.outputs.artifact }}.sha256
           archive: false
           if-no-files-found: error
