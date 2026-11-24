@@ -4,7 +4,7 @@ ARM_CC_FLAGS ?=
 PYTHON ?= python3
 HOST_CC ?= cc
 
-BUILD := build/phase1
+BUILD := build/work
 SOURCES := src/alice-kettle.c src/activity.c src/config.c src/job.c \
 	src/listener.c src/phrases.c src/quasar.c src/voice.c
 HEADERS := $(wildcard src/*.h)
@@ -89,7 +89,8 @@ test-client:
 	HOST_CC="$(HOST_CC)" $(PYTHON) tests/test_voice_client.py
 
 clean:
-	rm -rf build
+	rm -f $(BUILD)/*.o $(BUILD)/kettle-status-blobs.inc \
+		$(addprefix $(BUILD)/,alice-kettle discovery gatt-temperature gatt-stop gatt-boil test-modules)
 
 package:
 	scripts/pack-yam.sh
@@ -100,5 +101,5 @@ help:
 	@printf '  check        Version, Python, assembly, shell and C syntax checks\n'
 	@printf '  test         Module unit tests plus fake-Quasar integration tests\n'
 	@printf '  package      Stage and pack a YAM archive (needs YAM_PROFILES and MUSL_COPYRIGHT)\n'
-	@printf '  clean        Remove build artifacts\n'
+	@printf '  clean        Remove generated objects and binaries\n'
 	@printf '  help         Show this message\n'

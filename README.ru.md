@@ -21,8 +21,8 @@
 Понадобятся GNU Make, Python 3, кросс-компилятор GCC для ARM hard-float со статической libc, ARM binutils и доступ к Станции по SSH от имени root. Скопируйте библиотеку со своей Станции в каталог сборки.
 
 ```sh
-mkdir -p build/phase1
-ssh -F "$HOME/.ssh/config" -T station 'cat /system/workdir/lib/libbsa.so' > build/phase1/libbsa.so
+mkdir -p build/work
+ssh -F "$HOME/.ssh/config" -T station 'cat /system/workdir/lib/libbsa.so' > build/work/libbsa.so
 make
 ```
 
@@ -38,7 +38,7 @@ make
 KETTLE_ADDRESS=AA:BB:CC:DD:EE:FF scripts/run-station.sh /absolute/path/to/kettle.key
 ```
 
-По умолчанию используется SSH-псевдоним `station`. Другую цель можно передать вторым аргументом, а другой конфигурационный файл SSH — через `SSH_CONFIG`. Если путь к ключу опущен, используется `build/phase1/wsl-kettle.key`. Скрипт ждёт одну команду и после завершения сессии удаляет временные файлы со Станции. Для следующей команды запустите новую сессию.
+По умолчанию используется SSH-псевдоним `station`. Другую цель можно передать вторым аргументом, а другой конфигурационный файл SSH — через `SSH_CONFIG`. Если путь к ключу опущен, используется `build/work/wsl-kettle.key`. Скрипт ждёт одну команду и после завершения сессии удаляет временные файлы со Станции. Для следующей команды запустите новую сессию.
 
 ## Голосовая привязка
 
@@ -108,7 +108,7 @@ grep redmond-kettle /var/log/messages
 
 ```sh
 make all
-make -B build/phase1/alice-kettle ARM_CC=arm-linux-musleabihf-gcc
+make -B build/work/alice-kettle ARM_CC=arm-linux-musleabihf-gcc
 MUSL_COPYRIGHT=/path/to/musl/COPYRIGHT \
   YAM_PROFILES=/path/to/yam/platforms scripts/pack-yam.sh
 ```

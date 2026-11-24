@@ -4,7 +4,7 @@ set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 : "${YAM_PROFILES:?Set YAM_PROFILES to the upstream YAM platforms directory}"
 : "${MUSL_COPYRIGHT:?Set MUSL_COPYRIGHT to the COPYRIGHT file from the musl build}"
-voice="$root/build/phase1/alice-kettle"
+voice="$root/build/work/alice-kettle"
 version=$(cat "$root/VERSION")
 if ! readelf -sW "$voice" | awk '$NF == "__init_libc" {musl=1} END {exit !musl}'; then
     printf 'Build alice-kettle with a static ARM musl compiler before packaging\n' >&2
@@ -21,7 +21,7 @@ install -m 644 "$MUSL_COPYRIGHT" "$stage/musl-COPYRIGHT"
 install -m 755 "$root/packaging/yam/"*.sh "$stage/"
 mkdir -p "$stage/libexec"
 for binary in alice-kettle discovery gatt-temperature gatt-stop gatt-boil; do
-    install -m 755 "$root/build/phase1/$binary" "$stage/libexec/$binary"
+    install -m 755 "$root/build/work/$binary" "$stage/libexec/$binary"
 done
 install -m 755 "$root/scripts/station-temperature-worker.sh" "$stage/redmond-kettle-worker"
 install -m 644 "$root/config/kettle-phrases.conf" "$stage/phrases.conf"

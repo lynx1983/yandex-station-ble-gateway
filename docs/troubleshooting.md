@@ -99,12 +99,12 @@ instead of touching another Bluetooth session.
 
 ## Build or package failures
 
-- `Copy libbsa.so from your Station into build/phase1/libbsa.so before building
-  the probes` — copy the library from your own Station into `build/phase1/`
+- `Copy libbsa.so from your Station into build/work/libbsa.so before building
+  the probes` — copy the library from your own Station into `build/work/`
   before `make`. The repository does not ship it.
 - `Build alice-kettle with a static ARM musl compiler before packaging` —
   rebuild with
-  `make -B build/phase1/alice-kettle ARM_CC=arm-linux-musleabihf-gcc`.
+  `make -B build/work/alice-kettle ARM_CC=arm-linux-musleabihf-gcc`.
 - `YAM_PROFILES` / `MUSL_COPYRIGHT` errors — point them at the upstream YAM
   platforms directory and the `COPYRIGHT` file matching the musl build.
 - `version ... is inconsistent` — update both `VERSION` and the `version:`

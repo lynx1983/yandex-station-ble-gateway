@@ -1041,7 +1041,7 @@ target_temperature_text:
 key_path:
     .asciz "/tmp/ble-temp/key"
 .balign 4
-.include "build/phase1/kettle-status-blobs.inc"
+.include "build/work/kettle-status-blobs.inc"
 .endif
 .balign 4
 event_wait:

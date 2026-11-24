@@ -28,8 +28,8 @@ with static libc, ARM binutils, and a root SSH target for the Station.
 Copy the matching library from your own Station into the ignored build directory, then build. The repository does not distribute this firmware library.
 
 ```sh
-mkdir -p build/phase1
-ssh -F "$HOME/.ssh/config" -T station 'cat /system/workdir/lib/libbsa.so' > build/phase1/libbsa.so
+mkdir -p build/work
+ssh -F "$HOME/.ssh/config" -T station 'cat /system/workdir/lib/libbsa.so' > build/work/libbsa.so
 make
 ```
 
@@ -58,7 +58,7 @@ KETTLE_ADDRESS=AA:BB:CC:DD:EE:FF scripts/run-station.sh /absolute/path/to/kettle
 
 The launcher defaults to SSH alias `station` and accepts another target
 as a second argument. `SSH_CONFIG` selects a different SSH config file.
-Omitting the key path selects the local `build/phase1/wsl-kettle.key`.
+Omitting the key path selects the local `build/work/wsl-kettle.key`.
 The launcher listens for one command and removes its temporary files
 from the Station when the session ends. Start a new session for each
 additional command.
@@ -178,7 +178,7 @@ cross-compiler and use the official YAM publisher:
 
 ```sh
 make all
-make -B build/phase1/alice-kettle ARM_CC=arm-linux-musleabihf-gcc
+make -B build/work/alice-kettle ARM_CC=arm-linux-musleabihf-gcc
 MUSL_COPYRIGHT=/path/to/musl/COPYRIGHT \
   YAM_PROFILES=/path/to/yam/platforms scripts/pack-yam.sh
 ```

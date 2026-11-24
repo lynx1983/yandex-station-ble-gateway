@@ -44,12 +44,12 @@ The ARM toolchain, `libbsa.so`, YAM profiles and the musl notice are not in
 the repository.
 
 ```sh
-mkdir -p build/phase1
+mkdir -p build/work
 ssh -F "$HOME/.ssh/config" -T station 'cat /system/workdir/lib/libbsa.so' \
-  > build/phase1/libbsa.so
+  > build/work/libbsa.so
 
 make
-make -B build/phase1/alice-kettle ARM_CC=arm-linux-musleabihf-gcc
+make -B build/work/alice-kettle ARM_CC=arm-linux-musleabihf-gcc
 
 MUSL_COPYRIGHT=/path/to/musl/COPYRIGHT \
 YAM_PROFILES=/path/to/yam/platforms \
@@ -106,7 +106,7 @@ secret. With an authenticated GitHub CLI, run from the repository root:
 
 ```bash
 set -o pipefail
-bsa_payload=$(gzip -n -9c build/phase1/libbsa.so | base64 -w0) &&
+bsa_payload=$(gzip -n -9c build/work/libbsa.so | base64 -w0) &&
   test "${#bsa_payload}" -gt 40000 &&
   test "${#bsa_payload}" -le 88000 &&
   printf '%s' "${bsa_payload:0:40000}" | gh secret set YAM_BSA_PART_1 &&

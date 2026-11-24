@@ -46,9 +46,9 @@ phrase. Frame contents are processed in memory. The relay sends no
 Quasar directives. The parser has no BLE integration.
 
 ```sh
-mkdir -p build/phase1
-arm-linux-gnueabihf-as -o build/phase1/quasar-voice-relay.o build/archive/diagnostics/quasar-voice-relay.S
-arm-linux-gnueabihf-ld -o build/phase1/quasar-voice-relay build/phase1/quasar-voice-relay.o
+mkdir -p build/work
+arm-linux-gnueabihf-as -o build/work/quasar-voice-relay.o build/archive/diagnostics/quasar-voice-relay.S
+arm-linux-gnueabihf-ld -o build/work/quasar-voice-relay build/work/quasar-voice-relay.o
 ```
 
 For a live test, stream the relay over SSH to a temporary executable
@@ -139,7 +139,7 @@ Build the Station voice client with an ARM hard-float cross compiler:
 ```sh
 arm-linux-gnueabihf-gcc -static -march=armv7-a -mfpu=vfpv3-d16 \
   -std=c11 -O2 -Wall -Wextra -Werror \
-  -o build/phase1/alice-kettle src/alice-kettle.c
+  -o build/work/alice-kettle src/alice-kettle.c
 ```
 
 Stage the client, `discovery`, `gatt-temperature`, and the worker

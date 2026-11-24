@@ -32,7 +32,7 @@ The script runs through SSH standard input and writes the report to WSL's `/tmp`
 
 ## Station snapshot
 
-The read-only SSH collector ran as root via the `station` alias on 2026-11-20. WSL holds the report at `/tmp/yndx-0004-bsa.txt` and the library copy at `build/phase1/libbsa.so`.
+The read-only SSH collector ran as root via the `station` alias on 2026-11-20. WSL holds the report at `/tmp/yndx-0004-bsa.txt` and the library copy at `build/work/libbsa.so`.
 
 | Observation | Evidence |
 | --- | --- |
@@ -72,13 +72,13 @@ supplies a no-op callback and does not interpret event data. These layouts
 are specific to the inspected library.
 
 Build from the repository root with the matching library copy in
-`build/phase1/libbsa.so`:
+`build/work/libbsa.so`:
 
 ```sh
-arm-linux-gnueabihf-as -o build/phase1/bsa-management-probe.o scripts/bsa-management-probe.S
+arm-linux-gnueabihf-as -o build/work/bsa-management-probe.o scripts/bsa-management-probe.S
 arm-linux-gnueabihf-ld --dynamic-linker /lib/ld-linux-armhf.so.3 \
-  --allow-shlib-undefined -Lbuild/phase1 -o build/phase1/bsa-management-probe \
-  build/phase1/bsa-management-probe.o -lbsa
+  --allow-shlib-undefined -Lbuild/work -o build/work/bsa-management-probe \
+  build/work/bsa-management-probe.o -lbsa
 ```
 
 The probe ran from the Station's `/tmp` with
@@ -127,7 +127,7 @@ was initiated. The probe did not identify the kettle or test Alice.
 The discovery probe now captures address and name bytes from each device
 event. Probe diagnostics go to stderr. Redirect stdout to a local binary
 file and decode it with
-`python3 scripts/decode-bsa-discovery.py build/phase1/discovered-devices.bin`.
+`python3 scripts/decode-bsa-discovery.py build/archive/station-investigation/discovered-devices.bin`.
 The decoder groups reports by address. The probe copies up to 100 name
 bytes and stops reading at the first NUL.
 
@@ -190,7 +190,7 @@ establishes when the server became unavailable. The cause is unverified.
 Suspend on-device GATT probes pending BSA recovery and diagnosis.
 Restart or recovery actions require user authorization. Neither test
 issued a GATT characteristic write or a kettle heating command. Raw
-captures are under the ignored `build/phase1/` directory.
+captures are under the ignored `build/archive/station-investigation/` directory.
 
 ### BSA recovery
 
@@ -410,7 +410,7 @@ suspended.
 
 Automatic cleanup restored the stock BSA launch (PID 3819, listener
 inode 39078). Quasar and Soloist PIDs remained stable. The local
-captures are in `build/phase1/station-capture/`. Original temporary
+captures are in `build/archive/station-investigation/station-capture/`. Original temporary
 capture files remain in Station tmpfs. No Ready for Sky commands or
 application credential were sent.
 
@@ -449,7 +449,7 @@ BSA remained PID 3819 and the Unix listener kept inode 39078. Quasar
 and Soloist PIDs stayed 2376, 2273, 2195, 2194, and 2107. No Ready for
 Sky command was sent. The server no longer exits on this reply, and the
 client still does not receive the rebuilt database: this probe does not
-call `BSA_BleClSearch`. Captures are in `build/phase1/station-cache-image/`.
+call `BSA_BleClSearch`. Captures are in `build/archive/station-investigation/station-cache-image/`.
 
 ### Cache image followed by service search
 
@@ -463,7 +463,7 @@ the set loaded in the cache message. BSA stayed PID 3819 with listener
 inode 39078, and the Quasar and Soloist PIDs stayed unchanged. This
 run did not capture HCI, so it does not by itself show whether any ATT
 request left the controller. The previously fatal empty-cache discovery
-did not recur. Captures are in `build/phase1/station-cache-search/`.
+did not recur. Captures are in `build/archive/station-investigation/station-cache-search/`.
 
 ### Read-only kettle temperature
 
@@ -482,7 +482,7 @@ authentication and status. The status notification was
 `55 02 06 00 00 00 00 01 52 0f … aa`: 82 °C, heating off, error 0.
 `BSA_BleClClose` returned 0. BSA stayed PID 3819 with listener inode
 39078, and the Quasar and Soloist PIDs stayed unchanged. Captures are
-in `build/phase1/station-temperature/`.
+in `build/archive/station-investigation/station-temperature/`.
 
 An earlier session with the same corrected cache returned 86 °C in the
 status frame and then crashed while formatting the decimal: the text
@@ -495,7 +495,7 @@ gone when the probe closed it. The following session is the clean
 #### Rebuild the temperature probe
 
 From the repository root, place a copy of the firmware-matched
-`libbsa.so` in `build/phase1/`, then run:
+`libbsa.so` in `build/work/`, then run:
 
 ```sh
 python3 scripts/kettle-status-blobs.py
@@ -504,10 +504,10 @@ arm-linux-gnueabihf-as \
   --defsym=GATT_SEARCH=1 --defsym=GATT_REPLY_CACHE=1 \
   --defsym=GATT_CACHE_IMAGE=1 --defsym=GATT_CACHE_ONLY=1 \
   --defsym=GATT_CACHE_THEN_SEARCH=1 --defsym=GATT_TEMPERATURE=1 \
-  -o build/phase1/gatt-temperature.o scripts/bsa-management-probe.S
+  -o build/work/gatt-temperature.o scripts/bsa-management-probe.S
 arm-linux-gnueabihf-ld --dynamic-linker /lib/ld-linux-armhf.so.3 \
-  --allow-shlib-undefined -Lbuild/phase1 -o build/phase1/gatt-temperature \
-  build/phase1/gatt-temperature.o -lbsa
+  --allow-shlib-undefined -Lbuild/work -o build/work/gatt-temperature \
+  build/work/gatt-temperature.o -lbsa
 ```
 
 Use the full flag set for this firmware. In particular,

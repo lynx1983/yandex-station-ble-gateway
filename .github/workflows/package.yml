@@ -64,8 +64,8 @@ jobs:
         run: |
           : "${BSA_PART_1:?Set repository secret YAM_BSA_PART_1}"
           : "${BSA_PART_2:?Set repository secret YAM_BSA_PART_2}"
-          mkdir -p build/phase1
-          printf '%s%s' "$BSA_PART_1" "$BSA_PART_2" | base64 -d | gzip -dc > build/phase1/libbsa.so
+          mkdir -p build/work
+          printf '%s%s' "$BSA_PART_1" "$BSA_PART_2" | base64 -d | gzip -dc > build/work/libbsa.so
       - name: Build and pack
         id: build
         run: |

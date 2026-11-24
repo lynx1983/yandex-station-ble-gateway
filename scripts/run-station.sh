@@ -14,7 +14,7 @@ require_commands() {
 require_commands wc mktemp install head chmod mkdir rm rmdir tar ssh
 
 root=$(cd -- "$(dirname -- "$0")/.." && pwd)
-build="$root/build/phase1"
+build="$root/build/work"
 mode=voice
 if [[ ${1:-} == --pair ]]; then
     mode=pair

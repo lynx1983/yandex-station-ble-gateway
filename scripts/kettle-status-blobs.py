@@ -126,4 +126,4 @@ def emit(path):
 
 
 if __name__ == "__main__":
-    emit("build/phase1/kettle-status-blobs.inc")
+    emit("build/work/kettle-status-blobs.inc")

@@ -63,7 +63,7 @@ and no heating command was sent.
 ## WSL ATT baseline
 
 Recorded BlueZ enumeration with btmon on hci0 and copied the trace to
-`build/phase1/wsl-kettle-gatt.btsnoop`. Decoded text is in the same
+`build/archive/station-investigation/wsl-kettle-gatt.btsnoop`. Decoded text is in the same
 directory with suffix `.decoded.txt`. Both files are mode 0600 and
 outside version control. The kettle connected without pairing and
 BlueZ resolved services before the local disconnect.
