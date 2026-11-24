@@ -229,37 +229,41 @@ static void check_directive(int wrapped)
 
 static void test_phrases(void)
 {
+    struct aliases stock = {0};
+    assert(load_aliases("config/kettle-phrases.conf", &stock));
     int target = -1;
-    assert(kettle_phrase(&default_aliases,
+    assert(kettle_phrase(&stock,
                          span("Какая температура воды в чайнике?"), &target) ==
            READ_TEMPERATURE);
-    assert(kettle_phrase(&default_aliases, span("алиса, как там чайник"), &target) ==
+    assert(kettle_phrase(&stock, span("алиса, как там чайник"), &target) ==
            READ_STATUS);
     assert(strcmp(operation_names[START_HEAT], "heat") == 0);
 
     target = -1;
-    assert(kettle_phrase(&default_aliases,
+    assert(kettle_phrase(&stock,
                          span("нагрей воду в чайнике до пятидесяти градусов"),
                          &target) == START_HEAT && target == 50);
     target = -1;
-    assert(kettle_phrase(&default_aliases,
+    assert(kettle_phrase(&stock,
                          span("нагрей воду в чайнике до 90 °C"), &target) ==
            START_HEAT && target == 90);
     target = -1;
-    assert(kettle_phrase(&default_aliases,
+    assert(kettle_phrase(&stock,
                          span("нагрей воду в чайнике до двадцати градусов"),
                          &target) == START_HEAT && target == 0);
     target = -1;
-    assert(kettle_phrase(&default_aliases,
+    assert(kettle_phrase(&stock,
                          span("нагрей воду в чайнике для термоса"), &target) ==
            START_HEAT && target == 75);
-    assert(kettle_phrase(&default_aliases, span("какая погода"), &target) ==
+    assert(kettle_phrase(&stock, span("какая погода"), &target) ==
            NO_OPERATION);
 
     char valid_path[] = "/tmp/kettle-phrases-XXXXXX";
     int fd = mkstemp(valid_path);
     assert(fd >= 0);
-    const char config[] = "temperature=какая погода\nheat.75=нагрей для термоса\n";
+    const char config[] = "temperature=какая погода\nstatus=статус\n"
+                          "stop=стоп\nboil=кипяти\nheat=нагрей до\n"
+                          "heat.75=нагрей для термоса\n";
     assert(write(fd, config, strlen(config)) == (ssize_t)strlen(config));
     close(fd);
     struct aliases custom = {0};
@@ -268,7 +272,22 @@ static void test_phrases(void)
     target = -1;
     assert(kettle_phrase(&custom, span("нагрей для термоса"), &target) ==
            START_HEAT && target == 75);
+    assert(kettle_phrase(&custom, span("нагрей воду в чайнике для термоса"),
+                         &target) == NO_OPERATION);
     unlink(valid_path);
+    struct aliases invalid = {0};
+    assert(!load_aliases(valid_path, &invalid));
+
+    char incomplete_path[] = "/tmp/kettle-phrases-XXXXXX";
+    fd = mkstemp(incomplete_path);
+    assert(fd >= 0);
+    assert(!load_aliases(incomplete_path, &invalid));
+    const char incomplete[] = "temperature=температура\nstatus=статус\n"
+                              "stop=стоп\nboil=кипяти\nheat.75=для термоса\n";
+    assert(write(fd, incomplete, strlen(incomplete)) == (ssize_t)strlen(incomplete));
+    close(fd);
+    assert(!load_aliases(incomplete_path, &invalid));
+    unlink(incomplete_path);
 
     char duplicate_path[] = "/tmp/kettle-phrases-XXXXXX";
     fd = mkstemp(duplicate_path);
@@ -276,37 +295,39 @@ static void test_phrases(void)
     const char duplicate[] = "temperature=какая погода\ntemperature=какая погода\n";
     assert(write(fd, duplicate, strlen(duplicate)) == (ssize_t)strlen(duplicate));
     close(fd);
-    struct aliases invalid = {0};
+    invalid = (struct aliases){0};
     assert(!load_aliases(duplicate_path, &invalid));
     unlink(duplicate_path);
 }
 
 static void test_voice(void)
 {
+    struct aliases stock = {0};
+    assert(load_aliases("config/kettle-phrases.conf", &stock));
     struct voice voice = {0};
     struct job job = {0};
     int target = 0;
     struct request partial = {.present = 1, .mode = 1};
-    assert(admit(&voice, partial, &job, &default_aliases, &target) == NO_OPERATION);
+    assert(admit(&voice, partial, &job, &stock, &target) == NO_OPERATION);
     assert(voice.armed);
 
     struct request first = {.present = 1, .mode = 1, .final = 1,
                             .text = span("какая температура воды в чайнике"),
                             .id = span("r1")};
-    assert(admit(&voice, first, &job, &default_aliases, &target) == READ_TEMPERATURE);
-    assert(admit(&voice, first, &job, &default_aliases, &target) == NO_OPERATION);
+    assert(admit(&voice, first, &job, &stock, &target) == READ_TEMPERATURE);
+    assert(admit(&voice, first, &job, &stock, &target) == NO_OPERATION);
 
     job.pid = 123;
-    assert(admit(&voice, partial, &job, &default_aliases, &target) == NO_OPERATION);
+    assert(admit(&voice, partial, &job, &stock, &target) == NO_OPERATION);
     assert(job.stale);
     job.stale = 0;
     job.pid = 0;
-    assert(admit(&voice, partial, &job, &default_aliases, &target) == NO_OPERATION);
+    assert(admit(&voice, partial, &job, &stock, &target) == NO_OPERATION);
 
     struct request second = {.present = 1, .mode = 1, .final = 1,
                              .text = span("какая температура воды в чайнике"),
                              .id = span("r2")};
-    assert(admit(&voice, second, &job, &default_aliases, &target) == READ_TEMPERATURE);
+    assert(admit(&voice, second, &job, &stock, &target) == READ_TEMPERATURE);
 }
 
 int main(void)

@@ -112,11 +112,11 @@ the next session. Boil testing requires a filled kettle and supervision.
 See [the Bluetooth investigation](docs/bluetooth-stack.md) for the
 firmware-specific transport.
 
-A `heat.<degrees>=<phrase>` entry matches the whole phrase and uses the
-configured target (35–90 °C). The default thermos phrase uses 75 °C.
-When upgrading an older configuration, the built-in thermos phrase
-applies until the file defines a fixed-temperature alias. Edit or add
-entries and restart the service to apply changes.
+The phrase file is required. It must contain at least one entry for
+each of `temperature`, `status`, `stop`, `boil`, and `heat`.
+A `heat.<degrees>=<phrase>` entry adds an optional exact match with a
+fixed target (35–90 °C). The shipped configuration sets the thermos
+phrase to 75 °C. Restart the service after editing the installed file.
 
 ## Install with Alice Homebrew
 

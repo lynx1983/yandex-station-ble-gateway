@@ -28,7 +28,6 @@ struct aliases {
     size_t count;
 };
 
-extern const struct aliases default_aliases;
 extern const char *const operation_names[];
 
 enum operation kettle_phrase(const struct aliases *aliases, struct bytes text, int *target);

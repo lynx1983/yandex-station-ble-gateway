@@ -24,17 +24,13 @@ int main(int argc, char **argv)
         if (sigaction(SIGTERM, &action, NULL) < 0 || sigaction(SIGINT, &action, NULL) < 0)
             return 1;
     }
-    if ((argc != 2 && argc != 3) || access(argv[1], X_OK) < 0) {
-        fprintf(stderr, "Usage: alice-kettle [--continuous] WORKER [PHRASE_FILE]\n");
+    if (argc != 3 || access(argv[1], X_OK) < 0) {
+        fprintf(stderr, "Usage: alice-kettle [--continuous] WORKER PHRASE_FILE\n");
         return 2;
     }
     struct aliases configured = {0};
-    const struct aliases *aliases = &default_aliases;
-    if (argc == 3) {
-        if (!load_aliases(argv[2], &configured))
-            return 2;
-        aliases = &configured;
-    }
+    if (!load_aliases(argv[2], &configured))
+        return 2;
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in endpoint = {
         .sin_family = AF_INET, .sin_port = htons(QUASAR_PORT),
@@ -45,7 +41,7 @@ int main(int argc, char **argv)
         return 1;
     }
     fprintf(stderr, "Listening for kettle voice commands\n");
-    int result = listen_for_commands(fd, argv[1], aliases, continuous);
+    int result = listen_for_commands(fd, argv[1], &configured, continuous);
     close(fd);
     return result;
 }

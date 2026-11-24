@@ -188,7 +188,7 @@ class QuasarHarness:
         env["KETTLE_ACTIVITY_PATTERN"] = ""
         env.update(self.env_extra)
         self.proc = subprocess.Popen(
-            [str(self.binary), str(worker)],
+            [str(self.binary), str(worker), str(ROOT / "config/kettle-phrases.conf")],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             env=env,
@@ -335,6 +335,23 @@ class VoiceClientTests(unittest.TestCase):
             time.sleep(0.6)
 
             self.assertFalse(harness.has(lambda message: message[0] == 18))
+
+    def test_configured_thermos_phrase_passes_fixed_target(self):
+        with QuasarHarness() as harness:
+            worker = harness.write_worker(
+                '[ "$#" -eq 2 ] && [ "$1" = heat ] && [ "$2" = 75 ] || exit 1\n'
+                "printf 'started\\n'\n"
+            )
+            harness.start(worker)
+            harness.send("нагрей воду", final=False)
+            time.sleep(0.05)
+            harness.send("нагрей воду в чайнике для термоса", final=True)
+
+            self.assertTrue(harness.wait_for(
+                spoken("Чайник начал нагрев до 75 °C."), timeout=1.5
+            ))
+            returncode, _ = harness.finish()
+            self.assertEqual(returncode, 0)
 
     def test_invalid_heat_target_is_rejected_without_worker(self):
         with QuasarHarness() as harness:

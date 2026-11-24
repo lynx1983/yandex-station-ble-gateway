@@ -33,7 +33,7 @@ done
 config_dir=${YAM_ETC:-/data/yam/etc}/lynx.redmond-kettle
 mkdir -p "$config_dir"
 phrases=$config_dir/phrases.conf
-if [ ! -e "$phrases" ] && [ ! -L "$phrases" ]; then
+if [ "${1:-}" != --config-only ] && [ ! -e "$phrases" ] && [ ! -L "$phrases" ]; then
     (set -C; cat "$YAM_PKG/share/lynx.redmond-kettle/phrases.conf" > "$phrases")
 fi
 

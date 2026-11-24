@@ -5,18 +5,6 @@
 
 #include "phrases.h"
 
-const struct aliases default_aliases = {
-    .entries = {
-        {READ_TEMPERATURE, "какая температура воды в чайнике", 0},
-        {READ_STATUS, "какой статус чайника", 0},
-        {READ_STATUS, "как там чайник", 0},
-        {STOP_HEATING, "останови кипячение", 0},
-        {STOP_HEATING, "прекрати нагрев чайника", 0},
-        {START_BOIL, "вскипяти воду в чайнике", 0},
-    },
-    .count = 6,
-};
-
 const char *const operation_names[] = {
     [READ_TEMPERATURE] = "temperature",
     [READ_STATUS] = "status",
@@ -130,38 +118,23 @@ enum operation kettle_phrase(const struct aliases *aliases, struct bytes text, i
     char phrase[PHRASE_SIZE];
     if (!normalize(text, phrase))
         return NO_OPERATION;
-    int configured_preset = 0;
     for (size_t i = 0; i < aliases->count; i++) {
         const struct alias *alias = &aliases->entries[i];
-        configured_preset |= alias->target != 0;
         if ((alias->operation != START_HEAT || alias->target) &&
             strcmp(phrase, alias->phrase) == 0) {
             *target = alias->target;
             return alias->operation;
         }
     }
-    if (!configured_preset &&
-        strcmp(phrase, "нагрей воду в чайнике для термоса") == 0) {
-        *target = 75;
-        return START_HEAT;
-    }
-
-    int configured_heat = 0;
     for (size_t i = 0; i < aliases->count; i++) {
         const struct alias *alias = &aliases->entries[i];
         if (alias->operation != START_HEAT || alias->target)
             continue;
-        configured_heat = 1;
         size_t length = strlen(alias->phrase);
         if (strncmp(phrase, alias->phrase, length) == 0 && phrase[length] == ' ') {
             *target = heat_target(phrase + length + 1);
             return START_HEAT;
         }
-    }
-    static const char default_heat[] = "нагрей воду в чайнике до ";
-    if (!configured_heat && strncmp(phrase, default_heat, sizeof(default_heat) - 1) == 0) {
-        *target = heat_target(phrase + sizeof(default_heat) - 1);
-        return START_HEAT;
     }
     return NO_OPERATION;
 }
@@ -175,6 +148,7 @@ int load_aliases(const char *path, struct aliases *aliases)
     }
     char line[PHRASE_SIZE + 32];
     unsigned line_number = 0;
+    unsigned required = 0;
     while (fgets(line, sizeof(line), file)) {
         line_number++;
         if (!strchr(line, '\n') && !feof(file))
@@ -207,14 +181,31 @@ int load_aliases(const char *path, struct aliases *aliases)
                 goto invalid;
         alias->operation = operation;
         alias->target = target;
+        if (!target)
+            required |= 1u << operation;
         aliases->count++;
     }
-    if (ferror(file) || !aliases->count)
-        goto invalid;
+    int read_failed = ferror(file);
     fclose(file);
-    return 1;
+    if (read_failed) {
+        fprintf(stderr, "%s: could not read phrase configuration\n", path);
+        return 0;
+    }
+    if (!aliases->count) {
+        fprintf(stderr, "%s: no phrases configured\n", path);
+        return 0;
+    }
+    int complete = 1;
+    for (int operation = READ_TEMPERATURE; operation <= START_HEAT; operation++) {
+        if (!(required & (1u << operation))) {
+            fprintf(stderr, "%s: missing required phrase for %s\n",
+                    path, operation_names[operation]);
+            complete = 0;
+        }
+    }
+    return complete;
 invalid:
-    fprintf(stderr, "%s:%u: invalid, empty, or duplicate phrase entry\n", path, line_number);
+    fprintf(stderr, "%s:%u: invalid or duplicate phrase entry\n", path, line_number);
     fclose(file);
     return 0;
 }
